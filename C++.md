@@ -492,3 +492,51 @@ int main() {
 
 ---
 
+###  const char *p 、 char const *p 与 char * const p的区别
+
+const修饰的位置不同，会对指针p的性质产生不同的影响。
+
+- const char *p：指针p指向的是一个常量字符，即p所指向的字符内容不能通过指针p来修改，但是指针p可以指向其他的字符。
+
+  例如：
+
+  ```C++
+  const char *p = "Hello"; // p指向一个字符串常量，不能通过p修改字符内容
+  ```
+
+  p = "World"; // 可以将p指向"World"
+
+- char const *p：与const char *p相同，指针p也指向的是一个常量字符，即p所指向的字符内容不能通过指针p来修改，但是指针p可以指向其他的字符。
+
+- char * const p：指针p本身是一个常量指针，即p的值不能改变，它始终指向一个固定的地址，但是该地址中的字符内容可以通过指针p进行修改。
+
+  例如：
+
+  ```c++
+  char str1[] = "Hello";
+  char * const p = str1; // p是一个常量指针，始终指向str1的地址
+  p[0] = 'h'; // 可以通过p来修改str1的字符内容
+  char str2[] = "World";
+  //p = str2; // 不能修改指针p的值，会报错
+  ```
+
+  
+
+
+
+> 总结：const char *p 和 char const *p 是等价的，指针p指向的是一个常量字符；而char * const p是一个常量指针，指针p自身的值不能改变，但是可以通过指针p来修改字符内容。
+
+
+
+
+
+---
+
+
+
+### static_cast、dynamic_cast、reinterpret_cast 和 const_cast的区别
+
+- static_cast：用于基本类型之间的强制类型转换，以及具有继承关系的指针或引用之间的转换。它在**编译时**进行类型检查，不会进行dynamic_cast所需的运行时类型检查。
+- dynamic_cast：用于具有继承关系的指针或引用之间的转换，可以在**运行时**检查对象的类型是否能够转换成功。它只能用于具有虚函数的类（即多态类型），可以在将多态类型的指针或引用转换为其派生类指针或引用时使用。如果转换是不安全的，dynamic_cast返回一个空指针（对指针）或抛出一个std::bad_cast异常（对引用）。
+- reinterpret_cast：用于不同类型的指针、引用或任意类型之间的转换，它提供了一种底层的重新解释目标类型的方法，但是很容易导致未定义行为。reinterpret_cast不会进行任何类型检查，因此需要谨慎使用。
+- const_cast：用于添加或移除const、volatile修饰符，通常用于去除const限定，使一个const对象变为非常量。const_cast只能操作指针或引用，不能用于按值的变量。需要注意的是，const_cast只能改变底层对象的const性质，不能用于改变底层对象类型。
