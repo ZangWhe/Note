@@ -1251,7 +1251,7 @@ volatile是 C 语言中的一个关键字，用于修饰变量，表示该变量
 
 
 
-### 29 struct和typedef的区别
+### 29 define和typedef的区别
 
 ##### 区别
 
@@ -1259,7 +1259,7 @@ volatile是 C 语言中的一个关键字，用于修饰变量，表示该变量
 
 - 宏定义 #define 在编译期间将宏展开，并替换宏定义中的代码。预处理器只进行简单的文本替换，不涉及类型检查。
 
-比如：
+​	比如：
 
 ```c++
 #define INT_VECTOR std::vector<int>
@@ -1268,7 +1268,7 @@ volatile是 C 语言中的一个关键字，用于修饰变量，表示该变量
 - typedef 是一种类型定义关键字，用于为现有类型创建新的名称（别名）。
 
 
-与宏定义不同，typedef 是在编译阶段处理的，有更严格的类型检查。
+​	与宏定义不同，typedef 是在编译阶段处理的，有更严格的类型检查。
 
 ```
 typedef std::vector<int> IntVector;
@@ -1278,19 +1278,19 @@ typedef std::vector<int> IntVector;
 
 - 宏定义没有作用域限制，只要在宏定义之后的地方，就可以使用宏。
 
-通常用于定义常量、简单的表达式或简单的代码片段。
+​	通常用于定义常量、简单的表达式或简单的代码片段。
 
 - typedef 遵循 C++ 的作用域规则，可以受到命名空间、类等结构的作用域限制。
 
 
-typedef 通常用于定义复杂类型的别名，使代码更易读和易于维护，如：
+​	typedef 通常用于定义复杂类型的别名，使代码更易读和易于维护，如：
 
 ```c++
 typedef std::map<std::string, std::vector<int>> StringToIntVectorMap;
 ```
 
 **模板支持：**
-宏定义不支持模板，因此不能用于定义模板类型别名。
+	宏定义不支持模板，因此不能用于定义模板类型别名。
 
 ```c++
 // typedef 可以与模板结合使用，但在 C++11 之后，推荐使用 using 关键字定义模板类型别名。
@@ -1306,5 +1306,208 @@ template <typename T>
 struct MyContainer {
     using Type = std::vector<T>;
 };
+```
+
+
+
+---
+
+### 30 C/C++中数组做参数退化为指针
+
+##### 数组本身作为参数
+
+如下代码：
+
+```c++
+int func(char array[]) {
+    printf("sizeof=%d\n", sizeof(array));
+    printf("strlen=%d\n", strlen(array));
+}
+
+int main() {
+    char array[] = "Hello World";
+    printf("sizeof=%d\n", sizeof(array));
+    printf("strlen=%d\n", strlen(array));
+    func(array);
+}
+```
+
+64位机器输出结果
+
+```c++
+sizeof=12
+strlen=11
+sizeof=8   // ?
+strlen=11
+```
+
+这里涉及到一个概念：**数组退化为指针**。
+
+**数组退化：在 C++ 中，数组在作为函数参数时会退化为指向其首元素的指针。**
+
+退化的原因是因为数组作为函数参数时，实际传递的是指向数组首元素的指针，不可能逐个拷贝整个数组然后在栈上传递，所以编译器只知道参数是一个指针，而不知道它的长度信息。
+
+
+
+##### 数组的引用作为参数
+
+如下代码：
+
+```c++
+#include <iostream>
+#include <cstring>
+template <typename T, std::size_t N>
+void printSizeAndLength(const T (&arr)[N]) {
+    std::cout << "Size of arr in function: " << sizeof(arr) << std::endl; // 计算数组的大小
+    std::cout << "Length of arr: " << strlen(arr) << std::endl; // 计算字符串的长度
+}
+int main() {
+    char str[] = "Hello, world!";
+    std::cout << "Size of str in main: " << sizeof(str) << std::endl; // 计算整个字符数组的大小
+    printSizeAndLength(str);
+}
+```
+
+输出结果：
+
+```c++
+Size of str in main: 14
+Size of arr in function: 14
+Length of arr: 13
+```
+
+这段代码使用了模板函数 printSizeAndLength，它接受一个数组引用作为参数。
+
+在函数内部，使用 sizeof 计算数组的大小时，数组不会退化为指针。
+
+引用的作用就在于阻止拷贝的发生，通过传递引用，让形参得到和数组名同样的地址。
+
+
+
+---
+
+### 31 C++字节对齐
+
+在C/C++中，字节对齐是内存分配的一种策略。
+
+当分配内存时，编译器会自动调整数据结构的内存布局，使得数据成员的起始地址与其自然对齐边界（一般为自己大小的倍数）相匹配。
+
+**以下是字节对齐的一些基本规则：**
+
+- **自然对齐边界**
+
+  对于基本数据类型，其自然对齐边界通常为其大小。
+
+​		例如，char 类型的自然对齐边界为 1 字节，short 为 2 字节，int 和 float 为 4 字节，double 和 64 位指针为 8 字节。具体数值可能因编译器和平台而异。
+
+- **结构体对齐**
+
+  结构体内部的每个成员都根据其自然对齐边界进行对齐。也就是可能在成员之间插入填充字节。
+
+​		结构体本身的总大小也会根据其最大对齐边界的成员进行对齐（比如结构体成员包含的最长类型为int类型，那么整个结构体要按照4的倍数对齐），以便在数组中正确对齐。
+
+- **联合体对齐**
+
+  联合体的对齐边界取决于其最大对齐边界的成员。联合体的大小等于其最大大小的成员，因为联合体的所有成员共享相同的内存空间。
+
+- **编译器指令**
+
+  可以使用编译器指令（如 #pragma pack）更改默认的对齐规则。这个命令是全局生效的。这可以用于减小数据结构的大小，但可能会降低访问性能。
+
+- **对齐属性**
+
+  在 C++11 及更高版本中，可以使用 alignas 关键字为数据结构或变量指定对齐要求。这个命令是对某个类型或者对象生效的。例如，alignas(16) int x; 将确保 x 的地址是 16 的倍数。
+
+- **动态内存分配**
+
+  大多数内存分配函数（如 malloc 和 new）会自动分配足够对齐的内存，以满足任何数据类型的对齐要求。
+
+**例如**
+
+```c++
+#include <iostream>
+
+#pragma pack(push, 1) // 设置字节对齐为 1 字节，取消自动对齐
+struct UnalignedStruct {
+    char a;
+    int b;
+    short c;
+};
+#pragma pack(pop) // 恢复默认的字节对齐设置
+
+struct AlignedStruct {
+    char a;   // 本来1字节，padding 3 字节
+    int b;    //  4 字节
+    short c;  // 本来 short 2字节，但是整体需要按照 4 字节对齐(成员对齐边界最大的是int 4) 
+              // 所以需要padding 2
+   // 总共: 4 + 4 + 4
+};
+
+struct MyStruct {
+ double a;    // 8 个字节
+ char b;      // 本来占一个字节，但是接下来的 int 需要起始地址为4的倍数
+              //所以这里也会加3字节的padding
+ int c;       // 4 个字节
+ // 总共:  8 + 4 + 4 = 16
+};
+
+struct MyStruct1 {
+ char b;    // 本来1个字节 + 7个字节padding
+ double a;  // 8 个字节
+ int c;     // 本来 4 个字节，但是整体要按 8 字节对齐，所以 4个字节padding
+  // 总共: 8 + 8 + 8 = 24
+};
+// MyStruct 和 MyStruct1由于由于结构体成员的类型和顺序不同，导致字节对齐规则存在差异
+
+int main() {
+    std::cout << "Size of unaligned struct: " << sizeof(UnalignedStruct) << std::endl; 
+    // 输出：7
+    std::cout << "Size of aligned struct: " << sizeof(AlignedStruct) << std::endl; 
+    // 输出：12，取决于编译器和平台
+    std::cout << "Size of aligned struct: " << sizeof(MyStruct) << std::endl; 
+    // 输出：16，取决于编译器和平台
+    std::cout << "Size of aligned struct: " << sizeof(MyStruct1) << std::endl;
+     // 输出：24，取决于编译器和平台
+    return 0;
+}
+
+```
+
+
+
+---
+
+
+
+### 32 extern的作用
+
+一般而言，C++全局变量的作用范围仅限于当前的文件，但同时C++也支持分离式编译，允许将程序分割为若干个文件被独立编译。
+
+于是就需要在文件间共享变量数据，这里extern就发挥了作用。
+
+extern 用于指示变量或函数的定义在另一个源文件中，并在当前源文件中声明。 说明该符号具有外部链接(external linkage)属性。
+
+也就是告诉编译器: 这个符号在别处定义了，你先编译，到时候链接器会去别的地方找这个符号定义的地址。
+
+> **凡是没有带extern的声明同时也都是定义**。 而对函数而言，带有{}是定义，否则是声明。如果想声明一个变量而非定义它，就在变量名前添加关键字extern，且不要显式的初始化变量。
+
+
+
+---
+
+
+
+### 33  extern C 的作用
+
+extern 是指示链接可见性和符号规则，而 extern "C" 则是 C++ 语言提供的一种机制，用于在 C++ 代码中调用 C 语言编写的函数和变量。
+
+如果不用 extern C，由于 C++ 和 C 语言在编译和链接时使用的命名规则不同，这会导致 C++ 代码无法调用 C 语言编写的函数或变量（链接时找不到符号）。
+
+**extern "C" 的语法格式如下：**
+
+```c++
+extern "C" {
+    // C 语言函数或变量的声明
+}
 ```
 
