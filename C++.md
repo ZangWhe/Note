@@ -548,6 +548,21 @@ char str2[] = "World";
 
 用于具有继承关系的指针或引用之间的转换，可以在**运行时**检查对象的类型是否能够转换成功。它只能用于具有虚函数的类（即多态类型），可以在将多态类型的指针或引用转换为其派生类指针或引用时使用。如果转换是不安全的，dynamic_cast返回一个空指针（对指针）或抛出一个std::bad_cast异常（对引用）。
 
+dynamic_cast的底层原理依赖于运行时类型信息（RTTI, Runtime Type Information）。
+
+C++编译器在编译时为支持多态的类生成RTTI，它包含了类的类型信息和类层次结构。
+
+**工作原理的简化描述：**
+
+- 首先，dynamic_cast通过查询对象的 vptr 来获取其RTTI（这也是为什么 dynamic_cast 要求对象有虚函数）
+
+- 然后，dynamic_cast比较请求的目标类型与从RTTI获得的实际类型。如果目标类型是实际类型或其基类，则转换成功。
+- 如果目标类型是派生类，dynamic_cast会检查类层次结构，以确定转换是否合法。如果在类层次结构中找到了目标类型，则转换成功；否则，转换失败。
+- 当转换成功时，dynamic_cast返回转换后的指针或引用。
+- 如果转换失败，对于指针类型，dynamic_cast返回空指针；对于引用类型，它会抛出一个std::bad_cast异常。
+
+
+
 ##### reinterpret_cast
 
 用于不同类型的指针、引用或任意类型之间的转换，它提供了一种底层的重新解释目标类型的方法，但是很容易导致未定义行为。reinterpret_cast不会进行任何类型检查，因此需要谨慎使用。
@@ -746,9 +761,9 @@ int * const p = &a; // p是一个常量指针，不能改变p的值，但可以�
 
 深拷贝（Deep Copy）和浅拷贝（Shallow Copy）是在C++中用于复制对象或数据的两种不同方式。
 
-1. 浅拷贝：
+1. **浅拷贝：**
    浅拷贝是一种简单的复制操作，它只复制数据成员本身，而不复制指向的数据或对象。即使在复制后，原对象和副本对象仍然共享相同的资源。在浅拷贝中，默认情况下，编译器会提供默认的拷贝构造函数和赋值运算符重载函数，它们会逐个复制数据成员的值。
-2. 深拷贝：
+2. **深拷贝：**
    深拷贝是一种复制操作，它会复制所有的数据成员，包括指向的数据或对象。深拷贝创建了一个新的对象，并为新对象的指针成员分配独立的内存。在深拷贝中，开发者需要自定义拷贝构造函数和赋值运算符重载函数，以确保所有指针成员都进行独立的内存分配和复制。
 
 深拷贝的优势在于它创建了完全独立的拷贝，并且避免了多个对象之间共享资源的问题。每个对象都有自己的独立拷贝，修改一个对象不会影响其他对象
@@ -1510,4 +1525,541 @@ extern "C" {
     // C 语言函数或变量的声明
 }
 ```
+
+
+
+---
+
+
+
+### 34 mutable的作用
+
+mutable是C++中的一个关键字，用于修饰类的成员变量，表示该成员变量即使在一个const成员函数中也可以被修改。
+
+如果需要在const函数里面修改一些跟类状态无关的数据成员，那么这个函数就应该被mutable来修饰
+
+
+
+---
+
+
+
+### 35 面向对象三大特性
+
+C++ 面向对象编程 (OOP) 的三大特性包括：**封装、继承和多态**。
+
+##### 封装（Encapsulation）
+
+封装是将数据（属性）和操作这些数据的函数（方法）组合在一个类（Class）中的过程。
+
+封装的主要目的是隐藏类的内部实现细节，仅暴露必要的接口给外部。
+
+通过封装，我们可以控制类成员的访问级别（例如：public、protected 和 private），限制对类内部数据的直接访问，确保数据的完整性和安全性。
+
+##### 继承（Inheritance）
+
+继承是一个类（派生类，Derived Class）从另一个类（基类，Base Class）那里获得其属性和方法的过程。
+
+继承允许我们创建具有共享代码的类层次结构，减少重复代码，提高代码复用性和可维护性。
+
+在 C++ 中，访问修饰符（如 public、protected、private）控制了派生类对基类成员的访问权限。
+
+##### 多态（Polymorphism）
+
+多态是允许不同类的对象使用相同的接口名字，但具有不同实现的特性。
+
+在 C++ 中，多态主要通过虚函数（Virtual Function）和抽象基类（Abstract Base Class）来实现。
+
+虚函数允许在派生类中重写基类的方法，而抽象基类包含至少一个纯虚函数（Pure Virtual Function），不能被实例化，只能作为其他派生类的基类。
+
+通过多态，我们可以编写更加通用、可扩展的代码，提高代码的灵活性。
+
+> 总结：封装、继承和多态是面向对象编程的三大核心特性，能够帮助我们编写更加模块化、可重用和可维护的代码。
+>
+
+
+
+---
+
+### 36 C++ 类成员访问权限
+
+有三种访问修饰符：public、private 和 protected，分别定义了类成员的访问级别，控制类成员的可见性和可访问性。
+
+##### public（公共）
+
+公共成员在任何地方都是可访问的。
+
+调用方可以直接访问和修改公共成员，公共访问修饰符通常用于类的外部接口。
+
+但是一般情况下，不建议将类的成员变量设置为 public，因为这不符合封装的原则。
+
+```c++
+class MyClass {
+public:
+    int x;
+};
+```
+
+x 是一个公共成员，可以在类的对象中被访问。
+
+##### private（私有）
+
+私有成员只能在类的内部访问，即仅在类的成员函数中可以访问。
+
+私有成员用于实现类的内部实现细节，这些细节对于类的用户来说是隐藏的。
+
+```c++
+class MyClass {
+private:
+    int x;
+};
+```
+
+上面的x 是一个私有成员，不能在类的外部被直接访问，要想访问 x，必须由 MyClass 封装一些对外的 public 函数。
+
+##### protected（受保护）
+
+受保护成员类似于私有成员，但它们可以被派生类访问。
+
+受保护成员通常用于继承和多态等场景，这样子类也可以访问父类的成员变量。
+
+```c++
+class MyBaseClass {
+protected:
+    int x;
+};
+
+class MyDerivedClass : public MyBaseClass {
+public:
+    void setX(int a) {
+        x = a;
+    }
+};
+```
+
+
+
+---
+
+
+
+### 37 重载、重写、隐藏的区别
+
+##### 重载
+
+重载是指**相同作用域**(比如命名空间或者同一个类)内拥有相同的方法名，但具有**不同的参数类型和/或参数数量**的方法。 重载允许根据所提供的参数不同来调用不同的函数。它主要在以下情况下使用：
+
+- 方法具有相同的名称。
+- 方法具有不同的参数类型或参数数量。
+- 返回类型可以相同或不同。
+- 同一作用域，比如都是一个类的成员函数，或者都是全局函数
+
+如：
+
+```C++
+class OverloadingExample {
+  void display(int a) {
+    System.out.println("Display method with integer: " + a);
+  }
+
+  void display(String b) {
+    System.out.println("Display method with string: " + b);
+  }
+}
+```
+
+
+
+##### 重写
+
+重写是指在**派生类中重新定义基类**中的方法。
+
+当派生类需要改变或扩展基类方法的功能时，就需要用到重写。
+
+重写的条件包括：
+
+- 方法具有相同的名称。
+
+- 方法具有相同的参数类型和数量。
+- 方法具有相同的返回类型。
+- 重写的基类中被重写的函数必须有virtual修饰。
+- 重写主要在继承关系的类之间发生。
+
+如：
+
+```C++
+#include <iostream>
+
+class BaseClass {
+public:
+    virtual void display() {
+        std::cout << "Display method in base class" << std::endl;
+    }
+};
+
+class DerivedClass : public BaseClass {
+public:
+    void display() override {
+        std::cout << "Display method in derived class" << std::endl;
+    }
+};
+
+int main() {
+    DerivedClass derived;
+    derived.display();
+
+    return 0;
+}
+```
+
+##### 隐藏
+
+隐藏是指派生类的函数屏蔽了与其同名的基类函数。注意只要同名函数，不管参数列表是否相同，基类函数都会被隐藏。 
+
+如：
+
+```C++
+#include<iostream>
+using namespace std;
+
+classA{
+public:
+  void fun1(int i, int j){
+    cout <<"A::fun1() : " << i <<" " << j << endl;
+  }
+};
+classB : public A{
+public:
+  //隐藏
+  void fun1(double i){
+    cout <<"B::fun1() : " << i << endl;
+  }
+};
+int main(){
+  B b;
+  b.fun1(5);//调用B类中的函数
+  b.fun1(1, 2);//出错，因为基类函数被隐藏
+  system("pause");
+  return 0;
+}
+```
+
+##### 重载和重写的区别：
+
+**范围区别：**重写和被重写的函数在不同的类中，重载和被重载的函数在同一类中（同一作用域）。
+**参数区别：**重写与被重写的函数参数列表一定相同，重载和被重载的函数参数列表一定不同。
+**virtual的区别**：重写的基类必须要有virtual修饰，重载函数和被重载函数可以被virtual修饰，也可以没有。
+
+##### 隐藏和重写，重载的区别：
+
+**与重载范围不同**：隐藏函数和被隐藏函数在不同类中。
+**参数的区别：**隐藏函数和被隐藏函数参数列表可以相同，也可以不同，但函数名一定相同；当参数不同时，无论基类中的函数是否被virtual修饰，基类函数都是被隐藏，而不是被重写
+
+
+
+---
+
+
+
+### 38 C++ 类对象的初始化和析构顺序
+
+##### 初始化顺序
+
+1. **基类初始化顺序**
+
+如果当前类继承自一个或多个基类，它们将按照声明顺序进行初始化，但是在有虚继承和一般继承存在的情况下，优先虚继承。
+
+比如虚继承：`class MyClass : public Base1, public virtual Base2`，此时应当先调用 Base2 的构造函数，再调用 Base1 的构造函数。
+
+2. **成员变量初始化顺序**
+
+类的成员变量按照它们在类定义中的声明顺序进行初始化。
+
+3. **执行构造函数**
+
+在基类和成员变量初始化完成后，执行类的构造函数。
+
+**栗子：**
+
+```C++
+#include <iostream>
+
+class Base {
+public:
+    Base() { std::cout << "Base constructor" << std::endl; }
+    ~Base() {
+        std::cout << "Base destructor" << std::endl;
+    }
+};
+
+class Base1 {
+public:
+    Base1() { std::cout << "Base1 constructor" << std::endl; }
+    ~Base1() {
+        std::cout << "Base1 destructor" << std::endl;
+    }
+};
+
+class Base2 {
+public:
+    Base2() { std::cout << "Base2 constructor" << std::endl; }
+    ~Base2() {
+        std::cout << "Base2 destructor" << std::endl;
+    }
+};
+
+class Base3 {
+public:
+    Base3() { std::cout << "Base3 constructor" << std::endl; }
+    ~Base3() {
+        std::cout << "Base3 destructor" << std::endl;
+    }
+};
+
+class MyClass : public virtual Base3, public Base1, public virtual Base2 {
+public:
+    MyClass() : num1(1), num2(2) {
+        std::cout << "MyClass constructor" << std::endl;
+    }
+    ~MyClass() {
+        std::cout << "MyClass destructor" << std::endl;
+    }
+
+private:
+    int num1;
+    int num2;
+    // 这个是为了看成员变量的初始化顺序
+    Base base;
+};
+
+int main() {
+    MyClass obj;
+    return 0;
+}
+```
+
+**结果**
+
+```C++
+Base3 constructor  // 虚继承排第一
+Base2 constructor  // 虚继承优先
+Base1 constructor  // 普通基类
+Base constructor   // 成员函数构造
+MyClass constructor // 构造函数
+```
+
+
+
+##### 析构顺序
+
+**类的析构顺序和构造顺序完全相反**
+
+还是上面的代码
+
+```C++
+Base3 constructor
+Base2 constructor
+Base1 constructor
+Base constructor
+MyClass constructor
+MyClass destructor
+Base destructor
+Base1 destructor
+Base2 destructor
+Base3 destructor
+```
+
+
+
+---
+
+### 39 为什么C++构造函数不能是虚函数
+
+##### 从语法层面来说
+
+虚函数的主要目的是实现多态，即允许在派生类中覆盖基类的成员函数。
+
+但是，构造函数负责初始化类的对象，每个类都应该有自己的构造函数。
+
+在派生类中，基类的构造函数会被自动调用，用于初始化基类的成员。因此，构造函数没有被覆盖的必要，不需要使用虚函数来实现多态。
+
+##### 从虚函数表机制回答
+
+虚函数使用了一种称为虚函数表（vtable）的机制。然而，在调用构造函数时，对象还没有完全创建和初始化，所以虚函数表可能尚未设置。
+
+这意味着在构造函数中使用虚函数表会导致未定义的行为。
+
+只有执行完了对象的构造，虚函数表才会被正确的初始化。
+
+
+
+---
+
+
+
+### 40 为什么 C++ 基类析构函数需要是虚函数？
+
+当一个派生类继承自一个基类时
+
+- 若基类的析构函数不是虚函数，当用基类指针指向派生类时，`Base* ptr = new Derived();`，当析构函数被调用时，只会执行基类的析构函数，而不执行派生类的析构函数。
+- 若基类的析构函数是虚函数，则会先执行派生类的析构函数，再执行基类的析构函数
+
+**栗子：**
+
+基类析构函数没有定义为虚函数：
+
+```C++
+#include <iostream>
+
+class Base {
+public:
+    // 注意，这里的析构函数没有定义为虚函数
+    ~Base() {
+        std::cout << "Base destructor called." << std::endl;
+    }
+};
+
+class Derived : public Base {
+public:
+    Derived() {
+        resource = new int[100]; // 分配资源
+    }
+
+    ~Derived() {
+        std::cout << "Derived destructor called." << std::endl;
+        delete[] resource; // 释放资源
+    }
+
+private:
+    int* resource; // 存储资源的指针
+};
+
+int main() {
+    Base* ptr = new Derived();
+    delete ptr; // 只会调用Base的析构函数，Derived的析构函数不会被调用
+    return 0;
+}
+```
+
+输出结果
+
+```c++
+Base destructor called.
+```
+
+基类析构函数定义为虚函数：
+
+```C++
+class Base {
+public:
+    virtual ~Base() {
+        std::cout << "Base destructor called." << std::endl;
+    }
+};
+
+class Derived : public Base {
+public:
+    ~Derived() {
+        std::cout << "Derived destructor called." << std::endl;
+    }
+};
+
+int main() {
+    Base* ptr = new Derived();
+    delete ptr; // 调用Derived的析构函数，然后调用Base的析构函数
+    return 0;
+}
+
+```
+
+输出结果
+
+```C++
+Derived destructor called.
+Base destructor called.
+```
+
+
+
+**为什么默认的析构函数不是虚函数？**
+
+当类中有虚成员函数时，类会自动生成虚函数表和虚表指针，虚表指针指向虚函数表；
+
+这样一来，就会占用额外的内存，当们定义的类不被其他类继承时，这种内存开销无疑是浪费的。
+
+
+
+**总结**
+在C++中，基类的析构函数需要定义为虚函数，以确保在通过基类指针或引用删除派生类对象时，能够正确地调用派生类的析构函数，否则派生类的析构函数不会被调用，这部分资源也就并无法被释放。
+
+将基类的析构函数定义为虚函数后，C++运行时会自动识别指向的对象的实际类型，并确保调用正确的派生类析构函数。
+
+当派生类析构函数执行完毕后，基类的析构函数也会自动调用，以确保对象完全销毁。
+
+
+
+---
+
+
+
+### 41 sizeof 一个空类大小是多大
+
+**栗子：**
+
+```c++
+class Empty {};
+
+int main() {
+    Empty e1;
+    Empty e2;
+    std::cout << "Size of Empty class: " << sizeof(Empty) << std::endl;
+}
+```
+
+输出结果：
+
+```
+Size of Empty class: 1
+```
+
+**原因**
+
+这是因为C++标准要求每个对象都必须具有独一无二的内存地址。
+
+为了满足这一要求，编译器会给每个空类分配一定的空间，通常是1字节。
+
+这样，即使是空类，也能保证每个实例都有不同的地址。
+
+
+
+---
+
+
+
+### 42 为什么C++的成员模板函数不能是 virtual 的
+
+**问题**
+
+比如下面这段代码会报错
+
+```C++
+class Animal{
+  public:
+      template<typename T>
+      virtual void make_sound(){
+        //...
+      }
+};
+```
+
+**原因**
+
+因为C++的编译与链接模型是"分离"的。
+
+- 从Unix/C开始，一个C/C++程序就可以被分开编译，然后用一个linker链接起来。这种模型有一个问题，就是各个编译单元可能对另一个编译单元一无所知。
+
+- 一个 function template最后到底会被 instantiate 为多少个函数，要等整个程序(所有的编译单元)全部被编译完成才知道。
+- 同时，virtual function的实现大多利用了一个"虚函数表"的东西，这种实现中，一个类的内存布局(或者说虚函数表的内存布局)需要在这个类编译完成的时候就被完全确定。
+
+所以当一个虚拟函数是模板函数时，编译器在编译时无法为其生成一个确定的虚函数表条目，因为模板函数可以有无数个实例。但是编译时无法确定需要调用哪个特定的模板实例。因此，C++标准规定member function 不能既是 template 又是 virtual 的。
 
