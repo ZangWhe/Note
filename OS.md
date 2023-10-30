@@ -1,0 +1,360 @@
+
+
+
+
+### 1 缓存算法
+
+缓存算法是计算机科学中用于管理缓存中数据存储和替换的算法。缓存是一种用于临时存储数据的高速存储器，它可以减少对慢速存储器（如磁盘或网络）的访问次数，从而提高数据访问速度。
+
+常见的缓存算法包括：
+
+1. 先进先出（FIFO）：按照数据进入缓存的先后顺序进行替换。最早进入缓存的数据会被最先替换。
+2. 最近最少使用（LRU）：根据数据项最近被使用的时间进行替换。最近使用较少的数据项会被优先替换。
+3. 最不经常使用（LFU）：根据数据项被使用的频率进行替换。使用频率较低的数据项会被优先替换。
+4. 最近使用的（MRU）：与LRU相反，根据数据项最近被使用的时间进行替换。最近使用的数据项会被优先替换。
+5. 随机替换（Random）：随机选择要替换的数据项。
+
+
+
+---
+
+
+
+### 2 进程内存布局
+
+
+
+32位进程的内存布局主要包含以下几个块：
+
+[内核空间](https://www.zhihu.com/search?q=内核空间&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})：供内核使用，存放的是内核代码和数据
+
+stack：这就是我们经常所说的栈，用来存储[自动变量](https://www.zhihu.com/search?q=自动变量&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})([automatic variable](https://www.zhihu.com/search?q=automatic variable&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260}))
+
+mmap:也成为[内存映射](https://www.zhihu.com/search?q=内存映射&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})，用来在进程[虚拟内存](https://www.zhihu.com/search?q=虚拟内存&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})地址空间中分配地址空间，创建和[物理内存](https://www.zhihu.com/search?q=物理内存&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})的映射关系
+
+heap:就是我们常说的堆，动态内存的分配都是在堆上
+
+bss:包含所有未初始化的全局和[静态变量](https://www.zhihu.com/search?q=静态变量&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})，此段中的所有变量都由0或者空[指针初始化](https://www.zhihu.com/search?q=指针初始化&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})，程序加载器在加载程序时为BSS段分配内存
+
+data:初始化的数据块
+
+- 包含显式初始化的[全局变量](https://www.zhihu.com/search?q=全局变量&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})和静态变量
+- 此段的大小由[程序源代码](https://www.zhihu.com/search?q=程序源代码&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})中值的大小决定，在运行时不会更改
+- 它具有读写权限，因此可以在运行时更改此段的变量值
+- 该段可进一步分为[初始化只读区](https://www.zhihu.com/search?q=初始化只读区&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})和初始化读写区
+
+text：也称为文本段
+
+- 该段包含已编译程序的[二进制文件](https://www.zhihu.com/search?q=二进制文件&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})。
+- 该段是一个只读段，用于防止程序被意外修改
+- 该段是可共享的，因此对于[文本编辑器](https://www.zhihu.com/search?q=文本编辑器&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2973245260})等频繁执行的程序，内存中只需要一个副本
+
+
+
+---
+
+### 3 I/O多路复用
+
+I/O多路复用是一种基于事件驱动的编程模型，允许一个进程同时监听多个输入和输出流，并在可用时对其进行处理，提高系统的性能和吞吐量。它是通过将多个I/O操作集中管理，从而降低了系统的开销和资源消耗。
+
+在传统的阻塞IO模型中，每个IO操作都会导致进程阻塞，直到数据就绪才能进行下一步操作。而在I/O多路复用模型中，通过使用专门的系统调用（如select、poll、epoll），可以同时监视多个流的状态，当流中有数据可读或可写时，系统会通知应用程序进行相应的处理，而不需要将进程阻塞在等待数据上。
+
+I/O多路复用的优点主要体现在以下几个方面：
+
+1. 高效利用资源：通过一次注册多个流，只需要一个线程或进程就可以同时处理多个I/O操作，从而减少了线程或进程的数量和开销，提高了系统的资源利用率。
+2. 提高响应速度：当有多个流需要进行I/O操作时，可以同时监听它们的状态，一旦有流有数据可读或可写，就可以立即进行相应的处理，避免了阻塞和等待的过程，提高了系统的响应速度。
+3. 简化编程模型：使用I/O多路复用模型可以将多个流的事件集中处理，避免了多线程或多进程之间的同步和通信问题，使得编程更加简单和清晰。
+
+常用的I/O多路复用机制有以下几种：
+
+1. select：是一种较为简单的多路复用机制，通过将要监听的文件描述符放入一个集合中，然后调用select函数进行监听，一旦有事件就绪，返回就会返回可读或可写的文件描述符集合，然后进行相应的处理。
+2. poll：与select类似，也是一种多路复用机制，但相较于select，poll使用链表来存储文件描述符，这样不会受到文件描述符数量限制的影响。
+3. epoll：是Linux系统提供的一种高性能的多路复用机制。它使用红黑树和时间轮的数据结构来存储和管理文件描述符，可以支持大规模的连接并发，具有高效的触发方式和低延迟。
+
+总而言之，I/O多路复用技术可以提高系统的性能和效率，简化程序设计，适用于需要同时处理多个输入和输出流的场景。但是在具体的实现中，需要根据具体的应用场景和系统环境选择合适的机制。
+
+
+
+---
+
+### 4 堆和栈的区别
+
+堆和栈是计算机内存中两种不同的内存分配方式，主要用于管理变量和数据的存储。
+
+1. **分配方式：**
+   - 栈：栈是由编译器自动管理的，用于存储局部变量和函数调用的相关信息。在函数调用时，会自动在栈上分配内存。栈的分配和释放是自动进行的，遵循"后进先出"的原则。
+   - 堆：堆是程序员手动分配和释放的，用于存储动态内存分配的数据。程序员需要显式地申请内存，并在不使用时显示地释放内存。
+2. **管理方式：**
+   - 栈：栈是一种高效的内存管理方式，由于它是按照固定的顺序分配和释放内存，管理起来非常简单。栈的分配和释放速度快，开销低。
+   - 堆：堆的管理相对复杂，需要程序员手动控制内存的分配和释放。由于堆是动态分配的，可能会产生内存碎片，造成内存的浪费。堆的分配和释放速度相对较慢。
+3. **内存空间：**
+   - 栈：栈的大小是有限的，一般在编译时就已经确定。栈中存储的变量通常是局部变量和函数调用的相关信息。栈的大小由操作系统决定，过多的栈帧可能导致栈溢出（stack overflow）。
+   - 堆：堆的大小一般比栈大得多，并且不受操作系统的限制，大小由程序员根据需要进行动态分配。堆中存储的数据多为动态分配的对象和全局变量。
+4. **生命周期：**
+   - 栈：栈的生命周期由变量的作用域决定，在变量超出作用域后，栈自动释放变量的内存。
+   - 堆：堆的生命周期由程序员手动控制，需要显式地申请内存和释放内存。在不再使用堆中的数据时，程序员需要手动释放内存，否则可能会造成内存泄漏。
+
+总结：栈用于管理局部变量和函数调用相关信息，由编译器自动管理；堆用于动态分配内存，需要程序员手动控制分配和释放。栈的分配速度快，开销低，但大小有限；堆的分配速度相对慢，大小较大，需手动管理。
+
+> 在Windows中，栈的默认大小为1MB；在Unix/Linux系统中，栈的默认大小为8MB
+
+
+
+---
+
+### 5 虚拟地址空间是什么
+
+##### 概述
+
+虚拟地址空间是操作系统为每个进程分配的一块内存区域，它提供了一个抽象的视图，让每个进程认为自己独占了整个系统的物理内存。虚拟地址空间的大小是固定的，但不同操作系统的虚拟地址空间大小可能有所不同。
+
+##### 组成
+
+虚拟地址空间通常被划分为几个不同的区域，包括：
+
+1. 代码区：也称为文本区，存放程序的可执行代码，通常是只读的。
+2. 数据区：存放程序的全局变量、静态变量和常量数据。
+3. 堆区：由程序员动态分配和释放的内存，用于存放程序运行时产生的可变大小的数据。
+4. 栈区：用于存放函数调用过程中的局部变量、参数和函数调用的上下文信息。
+5. 共享库区：存放系统共享库的代码和数据，不同进程可以共享同一份共享库的虚拟内存。
+6. 内核区：用于存放操作系统的内核代码和数据，通常不允许进程直接访问。
+
+##### 作用
+
+1. 内存隔离：每个进程都拥有独立的虚拟地址空间，进程间的内存互不干扰，从而确保数据的安全性和隐私性。
+2. 内存管理：操作系统根据需要，动态地为每个进程分配和回收内存。虚拟地址空间使得程序开发人员不需要关注具体物理内存的分配和回收，只需关心虚拟地址的使用。
+3. 内存映射：虚拟地址空间允许将磁盘文件映射到内存中，通过读写内存，实现对文件的读写操作。这样可以提高文件操作的效率，简化程序的编写。
+4. 内存保护：虚拟地址空间允许操作系统对每个进程的内存进行保护，防止进程越界访问其他进程的内存或者操作系统内核的内存。如果进程发生越界访问，操作系统会立即终止该进程，防止其对系统产生不良影响。
+5. 虚拟内存：虚拟地址空间还可以实现虚拟内存技术，将内存和磁盘空间结合起来，允许操作系统将进程暂时不用的数据或代码保存到磁盘，并在需要时再恢复到内存中。这样可以有效地扩展可用内存大小，增加系统的性能和稳定性。
+
+
+
+---
+
+### 6 进程间通信方式有哪些？
+
+#### **什么是进程通信**
+
+进程通信（ InterProcess Communication，IPC）就是指**进程之间的信息交换**。
+
+#### **进程通信的背景**
+
+（1）进程在操作系统内核当中都是独立的进程控制块（PCB），也就是一个一个的struct_task{...}结构体对象
+
+![image-20231030205450223](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030205450223.png)
+
+
+
+（2）每个进程都有自己独立的进程虚拟地址空间，也就是说，进程之间的数据是独立的，从而导致进程的独立性
+
+![image-20231030212416200](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030212416200.png)
+
+（3）要想在进程与进程间建立联系，需要通过内核，在内核中开辟一块缓冲区，两个进程的信息在缓冲区中进行交换或者传递。
+
+![image-20231030205756719](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030205756719.png)
+
+
+
+#### **进程通信的方式**
+
+##### 管道 -- pipe
+
+管道是一种半双工的通信方式，数据只能单向流动
+
+- **管道的种类：**
+
+  - **匿名管道**：只能在具有亲缘关系的进程间使用（进程的亲缘关系通常是指父子进程关系）
+
+  - **命名管道**：允许无亲缘关系进程间的通信。
+
+###### 匿名管道
+
+- **特点**
+
+  - 只能用于具有共同祖先的进程（具有亲缘关系的进程）之间进行通信；通常，一个管道由一个进程创建，然后该进程调用fork()，此后父子进程之间就可以应用该管道。
+
+  - 一般而言，进程退出，管道释放，所以管道的生命周期跟随进程。
+
+  - 一般而言，内核会对管道操作进行同步与互斥
+
+  - 管道是半双工的，数据只能向一个方向流动；需要双方通信时，需要建立起两个管道。
+
+![image-20231030220106938](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030220106938.png)
+
+- **函数原型**
+
+  ```c++
+  #include <unistd.h>
+  int pipe(int fd[2]);
+  ```
+
+  - 函数
+    - pipe函数的成功调用会创建出一个匿名管道，对应在内核中会有一个内核缓冲区
+    - 此函数只是创建了管道，要想从管道中读取数据或者向管道中写入数据，需要使用read()和write()函数来完成。
+    - 当管道通信结束后，需要使用close()函数关闭管道的读写端。
+  - 输入
+    - fd[0] 表示管道的读端
+    - fd[1]表示管道的写端
+    - 都是文件描述符
+    - fd参数是输出型参数，不需要程序员赋值，由pipe函数在调用时赋值
+  - 返回值
+    - 创建成功返回0，创建失败返回-1
+    - 并且设置了适当的错误返回信息。
+
+- **函数使用**
+
+```c++
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+#define MAXSIZE 100
+
+int main()
+{
+    int fd[2], pid, line;
+    char message[MAXSIZE];
+    
+    /*创建管道*/
+    if(pipe(fd) == -1)
+    {
+        perror("create pipe failed!");
+        return 1;
+    }
+    /*创建新进程*/
+    else if((pid = vfork()) < 0)
+    {
+        // vfork() : 创建子进程，并先执行子进程，在执行父进程
+        perror("not create a new process!");
+        return 1;
+    }
+    /*子进程*/
+    else if(pid == 0)
+    {
+        close(fd[0]);
+        printf("child process SEND message!\n");
+        write(fd[1], "Hello Linux!",12); /*向文件中写入数据*/ 
+        _exit(0);
+    }
+    /*父进程*/
+    else if(pid > 0)
+    {
+        close(fd[1]);
+        printf("parent process RECEIVE message is:\n");
+        line = read(fd[0], message, MAXSIZE); /*读取消息，返回消息长度*/
+        write(STDOUT_FILENO,message,line); /*将消息写入终端*/
+        printf("\n");
+        wait(NULL);
+        _exit(0);
+    }
+    return 0;
+}
+
+
+```
+
+输出
+
+![image-20231030215615047](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030215615047.png)
+
+###### 命名管道
+
+- **函数原型**
+
+  ```shell
+  $ mkfifo filename
+  ```
+
+  or
+
+  ```c++
+  #include <sys/tyoes.h>
+  #include <sys/stat.h>
+  int mkfifo(const char* pathname, mode_t mode);
+  ```
+
+  - pathname是一个文件的路径名，是创建的一个命名管道的文件名；
+  - mode是指文件的权限
+
+- **函数使用**
+
+```c++
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <stdlib.h>
+// 文件路径
+#define FIFO "/root/process/hello"
+
+int main()
+{
+    int fd;
+    int pid;
+    char r_msg[BUFSIZ];
+    if((pid = mkfifo(FIFO,0777)) == -1) /*创建命名管道*/
+    {
+		perror("create fifo channel failed!");
+		return 1;
+    }
+    else
+    	printf("create success!\n");
+    
+    fd = open(FIFO, O_RDWR);  /*打开命名管道*/
+    if(fd == -1)
+    {
+        perror("cannot open the FIFO");
+        return 1;
+    }
+    if(write(fd,"hello world", 12) == -1)  /*写入消息*/
+    {
+        perror("write data error!");
+        return 1;
+    }
+    else
+    	printf("write data success!\n");
+    if(read(fd, r_msg, BUFSIZ) == -1)  /*读取消息*/
+    {
+        perror("read error!");
+        return 1;
+    }
+    else
+    	printf("the receive data is:  %s\n",r_msg);
+    
+    close(fd);   /*关闭文件*/
+    
+    return 0;
+}
+
+
+```
+
+输出
+
+![image-20231030220736834](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231030220736834.png)
+
+
+
+- mkfifo()进行数据传递的过程
+
+  - 用mkfifo()函数创建一个命名管道，命名管道文件路径为/root/process/hello
+
+  - 调用open()函数打开该命名管道文件，以读写的方式打开。
+
+  - 调用write()函数向文件写入信息"hello world", 同时调用read()函数读取该文件，输出到终端。
+
+  - 调用close()函数关闭打开的命名管道文件。
+
+
+
+****
+
+##### 共享内存 -- shared memory
+
+##### 消息队列 -- msg queue
+
+##### 信号量 --Semaphore
+
+##### 信号 -- signal
+
+##### Socket套接字编程 -- socket
