@@ -349,12 +349,727 @@ int main()
 
 ****
 
-##### 共享内存 -- shared memory
+
 
 ##### 消息队列 -- msg queue
 
+- **概述**
+
+管道的缺点就是通信效率低，且只能传输无格式的字节流。
+
+对于消息队列而言，如下图所示，进程A如果想要给进程B发送消息，只需要把数据放入到消息队列中，进程B在需要的时候自行去消息队列中读取数据即可，反过来同理。
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231031193241055.png" alt="image-20231031193241055" style="zoom:50%;" />
+
+**消息队列的本质就是存放在内存中的消息的链表，而消息本质上是用户自定义的数据结构**。
+
+一个消息队列由一个标识符（即队列ID）来标识。
+
+- **函数原型**
+
+```c++
+#include <sys/msg.h> // 消息队列相关函数及数据结构头文件
+
+
+int msgget(key_t key, int msg_flg); // 创建消息队列，key值唯一标识该消息队列
+/**
+ * param:
+ 	** key: 某个消息队列的名字（关键字），key值的获取既可以通过宏定义key值，也可以通过ftok函数生成key值
+ 	** msgflg: 由九个权限标志构成
+ 		*** IPC_CREAT:如果消息队列对象不存在，则创建，否则进行打开操作
+ 		*** IPC_EXCL:如果消息队列对象不存在则创建，否则产生一个错误并返回
+ * return:
+ 	** 成功则返回一个非负整数，表示该消息队列的标识码
+ 	** 失败则返回“-1”
+*/
+int msgrcv(int msg_id, void *msg_ptr, size_t msg_sz, long int msg_type, int msg_flg);// 接收消息
+/**
+ * param:
+ 	** msg_id: 由masgget()函数返回的消息队列标识码
+ 	** msg_ptr: 指针指向准备接收的消息（指的是结构体中内容text的大小，不是结构体本身的大小）
+ 	** msg_sz: msg_ptr指向的消息的长度
+ 	** msg_type: 可以实现接受优先级的简单形式，
+ 		*** msg_type = 0 : 返回队列的第一条消息
+ 		*** msg_type > 0 : 返回队列第一条类型等于msg_type的消息
+ 		*** msg_type < 0 : 返回队列第一条类型小于等于msgtype绝对值的消息
+ 	** msg_flg: 控制着队列没有相应类型的消息可以接收时将要发生的事情
+ 		*** msg_flg = IPC_NOWAIT表示队列没有可读消息不等待，返回ENOMSG错误
+ 		*** msg_flg = MSG_NOERROR表示消息大小超过msg_sz时被截断
+ 		*** msg_flg = MSC_EXCEPT表示，当mssg_type>0时，返回队列第一条不等于msg_type的消息
+ 			
+ * return:
+ 	** 成功返回实际放到接收缓冲区里的字符个数
+ 	** 失败返回-1
+*/
+
+
+int msgsnd(int msg_id, const void *msg_ptr, size_t msg_sz, int msg_flg);// 发送消息
+/**
+ * param:
+ 	** msg_id: 由masgget()函数返回的消息队列标识码
+ 	** msg_ptr: 指针指向准备发送的消息
+ 	** msg_sz: msg_ptr指向的消息的长度，（指的是结构体中内容text的大小，不是结构体本身的大小）
+ 	** msg_flg: 控制着当前消息队列满或到达系统上限时将要发生的事情
+ 		*** msg_flg = IPC_NOWAIT表示队列满的时候不等待，返回EAGAIN错误
+ * return:
+ 	** 成功返回0
+ 	** 失败返回-1
+*/
+
+
+int msgctl(int msg_id, int cmd, struct msgid_ds *buf);// 控制消息队列函数
+/**
+ * param:
+ 	** msg_id: 由masgget()函数返回的消息队列标识码
+ 	** cmd: 将要采取的动作
+ 		*** IPC_STAT: 把msgid_ds结构中的数据设置为消息队列的当前关联值
+ 		*** IPC_SET: 在进程有足够权限的前提下，把消息队列的当前关联值设置为msgid_ds数据结构中给定的值
+ 		*** IPC_RMID: 删除消息队列（若选择删除，则第三个参数为NULL）
+ 	*
+ * return:
+ 	** 成功返回0
+ 	** 失败返回-1
+*/
+```
+
+- **函数使用**
+
+server.c
+
+```c
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/stat.h>
+#include<time.h>
+
+// 用于创建一个唯一的key
+#define MSG_FILE "/etc/passwd"
+
+// 消息结构
+struct msg_form {
+    long mtype;
+    char mtext[256];
+};
+
+int main()
+{
+    int msqid;
+    key_t key;
+    struct msg_form msg;
+  
+   // 获取key值
+   if((key = ftok(MSG_FILE,'z')) < 0)
+   {
+       perror("ftok error");
+       exit(1);
+    }
+
+  // 打印key值
+    printf("Message Queue - Server key is: %d.\n", key);
+
+   // 创建消息队列
+    if ((msqid = msgget(key, IPC_CREAT|0777)) == -1)
+    {
+       perror("msgget error");
+       exit(1);
+    }
+ 
+    // 打印消息队列ID及进程ID
+    printf("My msqid is: %d.\n", msqid);
+    printf("My pid is: %d.\n", getpid());
+
+    // 循环读取消息
+    for(;;) 
+    {
+        msgrcv(msqid, &msg, sizeof(msg.mtext), 888, 0);// 返回类型为888的第一个消息
+        printf("Server: receive msg.mtext is: %s.\n", msg.mtext);
+        printf("Server: receive msg.mtype is: %d.\n", msg.mtype);
+
+        msg.mtype = 999; // 客户端接收的消息类型
+        sprintf(msg.mtext, "hello, I'm server %d", getpid());
+        msgsnd(msqid, &msg, sizeof(msg.mtext), 0);
+   }
+    
+   if (msgctl(msgid, IPC_RMID, 0) == -1) { # 删除消息队列，如果删除失败执行if语句并退出
+        fprintf(stderr, “msgctl(IPC_RMID) failed\n”);
+        exit(EXIT_FAILURE);
+   }
+   exit(EXIT_SUCCESS);
+    
+   return 0;
+ }
+```
+
+client.c
+
+```c
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/stat.h>
+#include<time.h>
+// 用于创建一个唯一的key
+#define MSG_FILE "/etc/passwd"
+
+// 消息结构
+struct msg_form {
+    long mtype;
+    char mtext[256];
+};
+
+int main()
+{
+    int msqid;
+    key_t key;
+    struct msg_form msg;
+
+    // 获取key值
+    if ((key = ftok(MSG_FILE, 'z')) < 0) 
+    {
+        perror("ftok error");
+        exit(1);
+    }
+
+    // 打印key值
+    printf("Message Queue - Client key is: %d.\n", key);
+
+    // 打开消息队列
+    if ((msqid = msgget(key, IPC_CREAT|0777)) == -1) 
+    {
+        perror("msgget error");
+        exit(1);
+    }
+
+    // 打印消息队列ID及进程ID
+    printf("My msqid is: %d.\n", msqid);
+    printf("My pid is: %d.\n", getpid());
+
+    // 添加消息，类型为888
+    msg.mtype = 888;
+    sprintf(msg.mtext, "hello, I'm client %d", getpid());
+    msgsnd(msqid, &msg, sizeof(msg.mtext), 0);
+
+    // 读取类型为999的消息
+    msgrcv(msqid, &msg, sizeof(msg.mtext), 999, 0);
+    printf("Client: receive msg.mtext is: %s.\n", msg.mtext);
+    printf("Client: receive msg.mtype is: %d.\n", msg.mtype);
+    return 0;
+}
+```
+
+
+
+- **消息队列和管道的对比**
+
+1.匿名管道是跟随进程的，消息队列是跟随内核的，也就是说进程结束之后，匿名管道就死了，但是消息队列还会存在（除非显示调用函数销毁）
+
+2.管道是文件，存放在磁盘上，访问速度慢，消息队列是数据结构，存放在内存，访问速度快
+
+3.管道是数据流式存取，消息队列是数据块式存取
+
+
+
+---
+
+
+
+##### 共享内存 -- shared memory
+
+共享内存（Shared Memory）,指的是两个或多个进程共享一个给定的存储区
+
+- **特点**
+
+  - 共享内存是最快的一种 IPC，因为进程是直接对内存进行存取。
+
+  - 因为多个进程可以同时操作，所以需要进行同步。
+
+  - 信号量+共享内存通常结合在一起使用，信号量用来同步对共享内存的访问。
+
+- **函数原型**
+
+```c
+#include <stdio.h>
+int shmget(key_t key, size_t size, int flag);
+/**
+ * 创建或获取一个共享内存
+ * param: 
+ 	* key: 进程间通信关键字，ftok()的返回值
+ 	* size: 该共享存储段的长度（字节）
+ 	* flag: 表示函数的行为及共享内存的权限
+ 		** IPC_CREAT: 如果不存在则创建
+ 		** IPC_EXCL: 如果已经存在则返回错误
+ * return:
+ 	* 成功返回共享内存ID
+ 	* 失败返回-1
+*/
+
+void shmat(int shm_id, const void *addr, int flag);
+/**
+ * 连接共享内存到当前进程的地址空间
+ * param: 
+ 	* shm_id: 共享内存标识符，shmget()的返回值
+ 	* addr: 共享内存映射地址，如果设置为NULL则由系统自动指定
+ 	* flag: 共享内存段内的访问权限和映射条件（通常为0）
+ 		** 0: 具有可读可写权限
+ 		** SHM_RDONLY: 只读
+ 		** SHM_RND: addr非空时才有效
+ * return:
+ 	* 成功返回共享内存段映射地址（也就是返回指向共享内存的指针）
+ 	* 失败返回-1
+*/
+
+int shmdt(void addr); 
+/**
+ * 断开与共享内存的连接
+ * param: 
+ 	* addr: 共享内存映射地址
+ * return:
+ 	* 成功返回0
+ 	* 失败返回-1
+*/
+
+int shmctl(int shm_id, int cmd, struct shmid_ds *buf);
+/**
+ * 控制共享内存的相关信息
+ * param: 
+ 	* shm_id: 共享内存标识符
+ 	* cmd: 函数功能的控制
+ 		** IPC_RMID: 删除
+ 		** IPC_SET: 设置shmid_ds参数，相当于把共享内存原来的属性值替换为buf里的属性值
+ 		** IPC_STAT: 保存shmid_ds参数，把共享内存原来的属性值被分到buf中
+ 		** SHM_LOCK: 锁定共享内存段（root）（SHM_LOCK 用于锁定内存，禁止内存交换。并不代表共享内存被锁定后禁止其它进程访问。其真正的意义是：被锁定的内存不允许被交换到虚拟内存中。这样做的优势在于让共享内存一直处于内存中，从而提高程序性能。）
+ 		** SHM_UNLOCK: 解锁共享内存段
+ 	* buf: shmid_ds数据类型的地址，可用于存放或修改共享内存的属性
+ * return:
+ 	* 成功返回0
+ 	* 失败返回-1
+*/
+```
+
+- **函数使用**
+
+创建两个进程，在 A 进程中创建一个共享内存，并向其写入数据，通过 B 进程从共享内存中读取数据。
+
+写端：
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+#define BUFSZ 512
+
+int main(int argc, char *argv[])
+{
+    int shmid;
+    int ret;
+    key_t key;
+    char *shmadd;
+ 
+    //创建key值
+    key = ftok("../", 2015);
+    if(key == -1)
+    {
+        perror("ftok");
+    }
+ 
+    //创建共享内存
+    shmid = shmget(key, BUFSZ, IPC_CREAT|0666);    
+    if(shmid < 0)
+    {
+        perror("shmget");
+        exit(-1);
+    }
+ 
+    //映射
+    shmadd = shmat(shmid, NULL, 0);
+    if(shmadd < 0)
+    {
+        perror("shmat");
+        _exit(-1);
+    }
+ 
+    //拷贝数据至共享内存区
+    printf("copy data to shared-memory\n");
+    bzero(shmadd, BUFSZ); // 共享内存清空
+    strcpy(shmadd, "how are you, lh\n");
+ 
+    return 0;
+}
+
+```
+
+读端：
+
+```C
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+
+#define BUFSZ 512
+
+int main(int argc, char *argv[])
+{
+    int shmid;
+    int ret;
+    key_t key;
+    char *shmadd;
+ 
+    //创建key值
+    key = ftok("../", 2015);
+    if(key == -1)
+    {
+        perror("ftok");
+    }
+ 
+    system("ipcs -m"); //查看共享内存
+ 
+    //打开共享内存
+    shmid = shmget(key, BUFSZ, IPC_CREAT|0666);
+    if(shmid < 0)
+    {
+        perror("shmget");
+        exit(-1);
+    }
+ 
+    //映射
+    shmadd = shmat(shmid, NULL, 0);
+    if(shmadd < 0)
+    {
+        perror("shmat");
+        exit(-1);
+    }
+ 
+    //读共享内存区数据
+    printf("data = [%s]\n", shmadd);
+ 
+    //分离共享内存和当前进程
+    ret = shmdt(shmadd);
+    if(ret < 0)
+    {
+        perror("shmdt");
+        exit(1);
+    }
+    else
+    {
+        printf("deleted shared-memory\n");
+    }
+ 
+    //删除共享内存
+    shmctl(shmid, IPC_RMID, NULL);
+ 
+    system("ipcs -m"); //查看共享内存
+ 
+    return 0;
+}
+```
+
+
+
+---
+
+
+
 ##### 信号量 --Semaphore
 
+- **概述**
+
+​	信号量用于实现进程间的互斥与同步，而不是用于存储进程间通信数据。
+
+- **特点**
+
+  - 信号量用于进程间同步，若要在进程间传递数据需要结合共享内存。
+
+  - 信号量基于操作系统的 PV 操作，程序对信号量的操作都是[原子操作](https://www.zhihu.com/search?q=原子操作&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A2931441698})。
+
+  - 每次对信号量的 PV 操作不仅限于对信号量值加 1 或减 1，而且可以加减任意正整数。
+
+  - 支持信号量组。
+
+- **工作原理**
+
+  - P(sv)：如果sv的值大于零，就给它减1；如果它的值为零，就挂起该进程的执行
+
+  - V(sv)：如果有其他进程因等待sv而被挂起，就让它恢复运行，如果没有进程因等待sv而挂起，就给它加1.
+
+  > PV操作均为原子操作
+
+- - **函数原型**
+
+    最简单的信号量是只能取 0 和 1 的变量，这也是信号量最常见的一种形式，叫做二值信号量（Binary Semaphore）。而可以取多个正整数的信号量被称为通用信号量。Linux 下的信号量函数都是在通用的信号量数组上进行操作，而不是在一个单一的二值信号量上进行操作。
+
+    ```C
+    #include <stdio.h>
+    
+    int semget(key_t key, int num_sems, int sem_flags);
+    /**
+     * 创建或获取一个信号量组
+     * param:
+     	* key: 进程间通信关键字，ftok()的返回值
+     	* num_sems: 指定信号量集中需要的信号量数目，基本是1
+     	* flag: 表示信号的创建标志
+     		** IPC_CREAT: 如果不存在则创建
+     		** IPC_EXCL: 如果已经存在则返回错误
+     * return:
+     	* 成功返回信号量集ID
+     	* 失败返回-1
+    */
+    
+    int semop(int semid, struct sembuf semoparray[], size_t numops);  
+    /**
+     *  对信号量组进行操作，改变信号量的值
+     * param:
+     	* semid: semget()返回的信号量集ID
+     	* struct sembuf定义如下
+     		'''
+     		struct sembuf{ 
+                short sem_num;   //信号量组中对应的序号，0～sem_nums-1
+                short sem_op;   //信号量在一次操作中需要改变的数据，通常是两个数，
+                                //一个是-1，即P（等待）操作， 
+                                //一个是+1，即V（发送信号）操作。 
+                short sem_flg; //通常为SEM_UNDO,使操作系统跟踪信号量， 
+                              //并在进程没有释放该信号量而终止时，操作系统释放信号量 
+        	}; 
+     		'''
+     	* nops: 信号量的个数
+     * return:
+     	* 成功返回0
+     	* 失败返回-1
+    */
+    
+    int semctl(int semid, int sem_num, int cmd, ...);
+    /**
+     * 控制信号量的相关信息
+     * param:
+     	* semid: semget()返回的信号量集ID
+     	* sem_num: 表示当前信号量集中的哪一个信号
+     	* cmd: 操作
+     		** SETVAL: 用来把信号量初始化为一个已知的值，这个值可以通过设置第四个参数union semun中的val成员设置，其作用是在信号量第一次使用前对它进行设置
+     		** IPC_RMID: 用于删除一个已经无需继续使用的信号量标识符，删除操作不需要缺省参数，只需要三个参数
+     	* ...: 缺省参数，一般定义为union semun arg;
+     		'''
+     		union semun
+            { 
+                int val;  //使用的值
+                struct semid_ds *buf;  //IPC_STAT、IPC_SET 使用的缓存区
+                unsigned short *arry;  //GETALL,SETALL 使用的数组
+                struct seminfo *__buf; // IPC_INFO(Linux特有) 使用的缓存区
+            };
+     		'''
+     * return:
+     	* 成功返回0
+     	* 失败返回-1
+    */
+    ```
+
+- **代码实现**
+
+```C
+#include<stdio.h>
+#include<stdlib.h>
+#include<sys/stat.h>
+#include<time.h>
+
+// 联合体，用于semctl初始化
+union semun
+{
+    int val; //for SETVAL
+    struct semid_ds buf;
+    unsigned short *array;
+};
+
+// 初始化信号量
+int init_sem(int sem_id, int value)
+{
+    union semun tmp;
+    tmp.val = value;
+    if(semctl(sem_id, 0, SETVAL, tmp) == -1)
+    {
+        perror("Init Semaphore Error");
+        return -1;
+    }
+    return 0;
+}
+
+// P操作:
+//    若信号量值为1，获取资源并将信号量值-1 
+//    若信号量值为0，进程挂起等待
+int sem_p(int sem_id)
+{
+    struct sembuf sbuf;
+    sbuf.sem_num = 0; /序号/
+    sbuf.sem_op = -1; /P操作/
+    sbuf.sem_flg = SEM_UNDO;
+
+    if(semop(sem_id, &sbuf, 1) == -1)
+    {
+        perror("P operation Error");
+        return -1;
+    }
+    return 0;
+}
+
+// V操作：
+//    释放资源并将信号量值+1
+//    如果有进程正在挂起等待，则唤醒它们
+int sem_v(int sem_id)
+{
+    struct sembuf sbuf;
+    sbuf.sem_num = 0; /序号/
+    sbuf.sem_op = 1;  /V操作/
+    sbuf.sem_flg = SEM_UNDO;
+
+    if(semop(sem_id, &sbuf, 1) == -1)
+    {
+        perror("V operation Error");
+        return -1;
+    }
+    return 0;
+}
+
+// 删除信号量集
+int del_sem(int sem_id)
+{
+    union semun tmp;
+    if(semctl(sem_id, 0, IPC_RMID, tmp) == -1)
+    {
+        perror("Delete Semaphore Error");
+        return -1;
+    }
+    return 0;
+}
+
+int main()
+{
+    int sem_id;  // 信号量集ID
+    key_t key;  
+    pid_t pid;
+
+    // 获取key值
+    if((key = ftok(".", 'z')) < 0)
+    {
+        perror("ftok error");
+        exit(1);
+    }
+
+    // 创建信号量集，其中只有一个信号量
+    if((sem_id = semget(key, 1, IPC_CREAT|0666)) == -1)
+    {
+        perror("semget error");
+        exit(1);
+    }
+
+    // 初始化：初值设为0资源被占用
+    init_sem(sem_id, 0);
+
+    if((pid = fork()) == -1)
+        perror("Fork Error");
+    else if(pid == 0) //子进程
+    {
+        sleep(2);
+        printf("Process child: pid=%d\n", getpid());
+        sem_v(sem_id);  //释放资源
+    }
+    else  //父进程//
+    {
+        sem_p(sem_id);   //等待资源
+        printf("Process father: pid=%d\n", getpid());
+        sem_v(sem_id);   //释放资源
+        del_sem(sem_id); //删除信号量集
+    }
+    return 0;
+}
+```
+
+
+
 ##### 信号 -- signal
+
+- **概述**
+
+​	**信号**是提供处理**异步事件机制**的软件中断。
+
+​	**通过发送指定信号来通知进程某个异步事件的发送，以迫使进程执行信号处理程序。信号处理完毕后，被中断进程将恢复执行**。
+
+​	也就是，A给B发送信号，B收到信号之前执行自己的代码，收到信号后，不管执行到程序的什么位置，都要暂停运行，去处理信号，处理完毕再继续执行。
+
+​	这些事情可以来自系统外部--例如系统产生中断符（通常Ctrl-C），或者来自程序或内核内部的活动，例如进程执行除以零的代码。
+
+​	作为一种进程间通信的基本形式，进程也可以给另一个进程发送信号。
+
+- **信号产生**
+
+  - 按键产生，如：Ctrl+c、Ctrl+z、Ctrl+\
+  - 系统调用产生，如：kill、raise、abort
+  - 软件条件产生，如：定时器alarm
+  - 硬件异常产生，如：非法访问内存(段错误)、除0(浮点数例外)、内存对齐出错(总线错误)
+  - 命令产生，如：kill命令
+
+- **进程间使用信号通信**
+
+  - signal()函数注册一个信号捕捉函数
+
+  ```C
+  typedef void (*sighandler_t)(int);
+  sighandler_t signal(int signum, sighandler_t handler);
+  ```
+
+  - **sigaction** 函数修改信号处理动作（通常在Linux用其来注册一个信号的捕捉函数）
+
+  ```C
+  int sigaction(int signum, const struct sigaction *act, struct sigaction *oldact);  //成功：0；失败：-1，设置errno
+  ```
+
+  - **kill** 函数: 给指定进程发送指定信号(不一定杀死)
+
+  ```C
+  int kill(pid_t pid, int sig);
+  /**
+   * pid: 进程号
+   * sig: 信号量，当为0时（即空信号），实际不发送任何信号，但照常进行错误检查。因此，可用于检查目标进程是否存在，以及当前进程是否具有向目标发送信号的权限
+  */
+  ```
+
+  - **raise** 函数：给当前进程发送指定信号(自己给自己发)
+
+  ```C
+  //raise(signo) == kill(getpid(), signo);
+  int raise(int sig);// 成功：0，失败非0值
+  ```
+
+  - **abort** 函数：给自己发送异常终止信号SIGALRM信号。进程收到该信号，默认动作终止。
+
+  ```C
+  void abort(void); 该函数无返回
+  ```
+
+  - __alarm__函数：设置定时器(闹钟)。在指定seconds后，内核会给当前进程发送SIGALRM信号。进程收到该信号，默认动作终止。
+
+  ```C
+  unsigned int alarm(unsigned int seconds); 返回0或剩余的秒数，无失败。
+  ```
+
+  - **setalarm** 函数：设置定时器(闹钟)。 可代替alarm函数。精度微秒us，可以实现周期定时。
+
+  ```C
+  int setitimer(int which, const struct itimerval *new_value, struct itimerval *old_value);//成功：0；失败：-1，设置errno
+  
+  /**
+   * which：指定定时方式
+  	** 自然定时：ITIMER_REAL → 14）SIGLARM 计算自然时间
+  	** 虚拟空间计时(用户空间)：ITIMER_VIRTUAL → 26）SIGVTALRM 只计算进程占用cpu的时间
+  	** 运行时计时(用户+内核)：ITIMER_PROF → 27）SIGPROF 计算占用cpu及执行系统调用的时间
+  
+  */
+  ```
+
+  
 
 ##### Socket套接字编程 -- socket
