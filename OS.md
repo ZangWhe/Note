@@ -1073,3 +1073,383 @@ int main()
   
 
 ##### Socket套接字编程 -- socket
+
+- **概念**
+
+  之前的各种通信机制如：pipe，FIFO，message queue，signal ，semaphore ，shared memory 都**局限于同一台计算机上的进程间通信**
+
+  套接字允许进程与不同计算机或者同一计算机上的其它进程通信
+
+  网络上的两个程序通过一个双向的通信连接实现数据的交换，这个连接的一端称为一个socket
+
+  建立网络通信连接至少要一对端口号(socket)。socket本质是编程接口(API)，对TCP/IP的封装，TCP/IP也要提供可供程序员做网络开发所用的接口，这就是Socket编程接口
+
+  
+
+- **TCP传输方式**
+
+TCP是一个**面向连接的**传输层协议，在数据发送之前（即进程通信之前)，必须先建立连接。通信完毕后，必须关闭连接。基于TCP传输协议的服务器与客户机间的通信工作流程如下图：
+
+![image-20231101153920262](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231101153920262.png)
+
+- **函数原型**
+
+```c
+int socket(int domain, int type, int protocol);
+/**
+	* socket函数对应于普通文件的打开操作，返回的是一个socket描述符(socket descriptor)，唯一标识一个socket
+	* param:
+		* domain: 协议族，常见的有AF_INET、AF_INET6、AF_LOCAL、AF_ROUTE，协议族决定了socket地址的类型，在通信中必须采用对应的地址格式要求
+		* type: 执行socket类型，常用的socket类型有，SOCK_STREAM、SOCK_DGRAM、SOCK_RAW、SOCK_PACKET、SOCK_SEQPACKET等
+		* protocol: 协议，常用的协议有，IPPROTO_TCP、IPPTOTO_UDP、IPPROTO_SCTP、IPPROTO_TIPC等，它们分别对应TCP传输协议、UDP传输协议、STCP传输协议、TIPC传输协议
+	* return:
+		* socket描述符
+*/
+```
+
+```C
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+/**
+	* bind()函数把一个地址族中的特定地址赋给socket。
+	* param:
+		* sockfd: socket描述符
+		* addr: const struct sockaddr *指针，指向要绑定给sockfd的协议地址。
+		* addrlen: 地址的长度
+	* return:
+		* socket描述符
+*/
+```
+
+```C
+int listen(int sockfd, int backlog);
+
+/**
+	* 调用listen()来监听socket
+	* param:
+		* sockfd: socket描述符
+		* backlog: 最大连接个数
+	* return:
+		* 
+*/
+
+
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+/**
+	* 如果客户端这时调用connect()发出连接请求，服务器端就会接收到这个请求。
+	* param:
+		* sockfd: socket描述符
+		* addr: 服务器的socket地址
+		* addrlen: 地址的长度
+	* return:
+		* 
+*/
+
+```
+
+```C
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+/**
+	* TCP服务器监听到连接请求之后，就会调用accept()函数取接收请求，这样连接就建立好了。之后就可以开始网络I/O操作了，即类同于普通文件的读写I/O操作。
+	* param:
+		* sockfd: socket描述符
+		* addr: 服务器的socket地址
+		* addrlen: 地址的长度
+	* return:
+		* 其返回值是由内核自动生成的一个全新的描述字，代表与返回客户的TCP连接。
+*/
+```
+
+```C
+#include <unistd.h>       
+ssize_t read(int fd, void *buf, size_t count);       
+ssize_t write(int fd, const void *buf, size_t count);       
+
+#include <sys/types.h>       
+#include <sys/socket.h>       
+ssize_t send(int sockfd, const void *buf, size_t len, int flags);       
+ssize_t recv(int sockfd, void *buf, size_t len, int flags);       
+
+ssize_t sendto(int sockfd, const void *buf, size_t len, int flags,                      const struct sockaddr *dest_addr, socklen_t addrlen);       
+ssize_t recvfrom(int sockfd, void *buf, size_t len, int flags,                        struct sockaddr *src_addr, socklen_t *addrlen);       
+
+ssize_t sendmsg(int sockfd, const struct msghdr *msg, int flags);       
+ssize_t recvmsg(int sockfd, struct msghdr *msg, int flags);
+```
+
+
+
+```C
+#include <unistd.h>
+int close(int fd);
+/**
+	* 完成读写操作后就要关闭相应的socket描述符
+	* param:
+		* fd: socket描述符或者文件描述符
+	* return:
+		* 
+*/
+```
+
+
+
+- **函数使用**
+
+服务端TCPServer.cpp
+
+```c++
+#include <stdio.h>
+#include <winsock2.h>
+#pragma comment (lib, "ws2_32.lib")  //加载 ws2_32.dll
+
+#define BUF_SIZE 100
+
+int main()
+{
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    //创建套接字
+    SOCKET servSock = socket(AF_INET, SOCK_STREAM, 0);//【socket】
+
+    //绑定套接字
+    sockaddr_in sockAddr;
+    memset(&sockAddr, 0, sizeof(sockAddr));  //每个字节都用0填充
+    sockAddr.sin_family = PF_INET;  //使用IPv4地址
+    sockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");  //具体的IP地址
+    sockAddr.sin_port = htons(1234);  //端口
+    bind(servSock, (SOCKADDR*)&sockAddr, sizeof(SOCKADDR));//【bind】
+
+    //进入监听状态
+    listen(servSock, 20);//【listen】
+
+    //接收客户端请求
+    SOCKADDR clntAddr;
+    int nSize = sizeof(SOCKADDR);
+    char buffer[BUF_SIZE] = { 0 };  //缓冲区
+    while (1) 
+    {
+        SOCKET clntSock = accept(servSock, (SOCKADDR*)&clntAddr, &nSize);//【accept】
+        int strLen = recv(clntSock, buffer, BUF_SIZE, 0);  //接收客户端发来的数据 【recv】
+        send(clntSock, buffer, strLen, 0);  //将数据原样返回【send】
+
+        closesocket(clntSock);  //关闭套接字
+        memset(buffer, 0, BUF_SIZE);  //重置缓冲区
+    }
+
+    //关闭套接字
+    closesocket(servSock);
+
+    //终止 DLL 的使用
+    WSACleanup();
+
+    return 0;
+}
+```
+
+
+
+客户端TCPClient.cpp
+
+```c++
+#include <stdio.h>
+#include <WinSock2.h>
+#include <windows.h>
+#pragma comment(lib, "ws2_32.lib")  //加载 ws2_32.dll
+
+#define BUF_SIZE 100
+
+int main() {
+    //初始化DLL
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+    //向服务器发起请求
+    sockaddr_in sockAddr;
+    memset(&sockAddr, 0, sizeof(sockAddr));  //每个字节都用0填充
+    sockAddr.sin_family = PF_INET;
+    sockAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    sockAddr.sin_port = htons(1234);
+
+    char bufSend[BUF_SIZE] = { 0 };
+    char bufRecv[BUF_SIZE] = { 0 };
+
+    while (1) 
+    {
+        //创建套接字
+        SOCKET sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);//【socket】
+        connect(sock, (SOCKADDR*)&sockAddr, sizeof(SOCKADDR));//【connect】
+        //获取用户输入的字符串并发送给服务器
+        printf("Input a string: ");
+        gets_s(bufSend);
+        send(sock, bufSend, strlen(bufSend), 0);//【send】
+        //接收服务器传回的数据
+        recv(sock, bufRecv, BUF_SIZE, 0);//【recv】
+        //输出接收到的数据
+        printf("Message form server: %s\n", bufRecv);
+
+        memset(bufSend, 0, BUF_SIZE);  //重置缓冲区
+        memset(bufRecv, 0, BUF_SIZE);  //重置缓冲区
+        closesocket(sock);  //关闭套接字【close】
+    }
+
+    WSACleanup();  //终止使用 DLL
+    return 0;
+}
+```
+
+
+
+### 7 僵尸进程
+
+##### 什么是僵尸进程
+
+在 Linux 环境中，一般通过 `fork` 函数来创建子进程的。创建完毕之后，父子进程独立运行，父进程无法预知子进程什么时候结束。
+
+通常情况下，子进程退出后，父进程会使用 `wait` 或 `waitpid` 函数进行回收子进程的资源，并获得子进程的终止状态。
+
+但是，如果**父进程先于子进程结束**，则**子进程成为孤儿进程**。孤儿进程将被 init 进程（进程号为1）领养，并由 init 进程对孤儿进程完成状态收集工作。
+
+而如果**子进程先于父进程退出**，**同时父进程太忙了，无瑕回收子进程的资源**，子进程残留资源（PCB）存放于内核中，变成僵尸（Zombie）进程
+
+
+
+##### 如何查看linux系统上的僵尸进程，如何统计有多少僵尸进程？
+
+- ps命令查看僵尸进程，关键词<defunct>
+
+```shell
+#ps -ef | grep defunct
+```
+
+![image-20231101195326472](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231101195326472.png)
+
+- top命令也记录了僵尸进程（0 zombie）
+
+```shell
+top
+```
+
+![image-20231101195534403](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231101195534403.png)
+
+
+
+##### 孤儿进程和僵尸进程的区别
+
+　**孤儿进程**
+
+一个父进程退出，而它的一个或多个子进程还在运行，那么那些子进程将成为孤儿进程。孤儿进程将被init进程(进程号为1)所收养，并由init进程对它们完成状态收集工作。
+
+　**僵尸进程**
+
+一个进程使用fork创建子进程，如果子进程退出，而父进程并没有调用wait或waitpid获取子进程的状态信息，那么子进程的进程描述符仍然保存在系统中。这种进程称之为僵尸进程。
+
+
+
+##### 产生僵尸进程的栗子
+
+子进程执行的程序
+
+```C
+#include <stdio.h> 
+int main()  
+{  
+     int i = 0;  
+     for (i = 0 ; i < 10; i++)  
+            {  
+                    printf ("child time %d\n", i+1);  
+                    sleep (1);  
+            }  
+     return 0;  
+}  
+```
+
+父进程执行的程序
+
+```C
+#include <stdio.h> 
+#include <unistd.h> 
+#include <sys/types.h> 
+#include <sys/wait.h> 
+int main(){  
+     int pid = fork ();  
+     if (pid == 0){
+         system ("./test_prog");
+         _exit (0);
+     }else{  
+         int i = 0;  
+         /* 
+         int status = 0; 
+         while (!waitpid(pid, &status, WNOHANG)){
+            printf ("father waiting%d\n", ++i);
+            sleep (1);
+         }*/ 
+         while (1){
+             printf ("father waiting over%d\n", ++i);
+             sleep (1);
+         }  
+         return 0;
+     } 
+}  
+```
+
+执行`./father`,当子进程退出后，由于父进程没有对它的退出进行关注，会出现僵尸进程
+
+
+
+##### 如何杀死一个僵尸进程
+
+僵尸进程其实已经就是退出的进程，因此无法再利用kill命令杀死僵尸进程。
+
+僵尸进程的罪魁祸首是父进程没有回收它的资源，那我们可以想办法让其它进程去回收僵尸进程的资源，这个进程就是 init 进程。
+
+因此，我们可以直接杀死父进程，init 进程就会很善良地把那些僵尸进程领养过来，并合理的回收它们的资源，那些僵尸进程就得到了妥善的处理了。
+
+- 首先通过如下命令查看僵尸进程的PID
+
+```shell
+ps -ef | grep defunt
+```
+
+- 然后通过如下命令查看系统内进程的树状图
+
+```shell
+pstree -psn
+```
+
+![image-20231101202757402](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231101202757402.png)
+
+- 然后通过kill命令干掉父进程
+
+```shell
+kill -9 <parent_process_ID>
+```
+
+- 最后可以再次通过ps或者top命令验证僵尸进程是否还存在
+
+##### 如何避免僵尸进程
+
+- 父进程通过`wait`和`waitpid`等函数等待子进程结束，这会导致父进程挂起。
+
+​		如上述栗子中的注释部分
+
+- 如果父进程很忙，那么可以用`signal`函数为SIGCHLD安装handler。在子进程结束后，父进程会收到该信号，可以在handler中调用wait回收。
+
+```C
+signal(SIGCHLD,sig_child);
+
+
+static void sig_child(int signo)
+{
+      pid_t pid;
+      int stat;
+      //处理僵尸进程
+      while ((pid = waitpid(-1, &stat, WNOHANG)) >0)
+             printf("child %d terminated.\n", pid);
+}
+```
+
+
+
+- 如果父进程不关心子进程什么时候结束，那么可以用**signal(SIGCLD, SIG_IGN)或signal（SIGCHLD, SIG_IGN）**通知内核，自己对子进程的结束不感兴趣，那么子进程结束后，内核会回收，并不再给父进程发送信号
+
+-  fork两次，父进程fork一个子进程，然后继续工作，子进程fork一个孙进程后退出，那么孙进程被init接管，孙进程结束后，init会回收。不过子进程的回收还要自己做。
