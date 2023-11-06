@@ -1555,4 +1555,505 @@ static void sig_child(int signo)
 
 
 
-### 8 
+### 9 操作系统调度策略
+
+##### 先来先服务（FCFS）
+
+按照进程到达的顺序分配CPU时间，即先到达的进程先执行，直到该进程执行完成。
+
+优点是简单、公平，无偏向性。缺点是平均等待时间可能较长，尤其对于长时间运行的进程。
+
+```c++
+#include <iostream>
+#include <queue>
+
+struct Process {
+    int id;
+    int burst_time;
+};
+
+void FCFS(std::queue<Process> processes) {
+    int current_time = 0;
+
+    while (!processes.empty()) {
+        Process current_process = processes.front();
+        processes.pop();
+
+        std::cout << "Running process " << current_process.id << " for " << current_process.burst_time << " units" << std::endl;
+
+        current_time += current_process.burst_time;
+    }
+}
+
+int main() {
+    std::queue<Process> processes;
+    processes.push({1, 10});
+    processes.push({2, 5});
+    processes.push({3, 8});
+    FCFS(processes);
+
+    return 0;
+}
+
+```
+
+#####  最短作业优先（SJF）
+
+选择具有最短执行时间的进程来运行。
+
+优点是可以减少平均等待时间。缺点是需要预测进程执行时间，对长时间运行的进程不公平。
+
+```c++
+#include <iostream>
+#include <queue>
+#include <algorithm>
+
+struct Process {
+    int id;
+    int burst_time;
+};
+
+bool compare(Process a, Process b) {
+    return a.burst_time < b.burst_time;
+}
+
+void SJF(std::queue<Process> processes) {
+    std::vector<Process> process_list;
+    while (!processes.empty()) {
+        process_list.push_back(processes.front());
+        processes.pop();
+    }
+
+    std::sort(process_list.begin(), process_list.end(), compare);
+
+    for (const Process& process : process_list) {
+        std::cout << "Running process " << process.id << " for " << process.burst_time << " units" << std::endl;
+    }
+}
+
+int main() {
+    std::queue<Process> processes;
+    processes.push({1, 10});
+    processes.push({2, 5});
+    processes.push({3, 8});
+    SJF(processes);
+
+    return 0;
+}
+
+```
+
+
+
+#####  优先级调度
+
+使用每个进程的优先级来选择下一个要运行的进程。优先级可以是静态的或动态的，并根据不同的算法进行调整。优先级较高的进程会优先获得CPU时间。
+
+```C++
+#include <iostream>
+#include <queue>
+
+struct Process {
+    int id;
+    int burst_time;
+    int priority;
+};
+
+struct ComparePriority {
+    bool operator()(Process const& p1, Process const& p2) {
+        return p1.priority > p2.priority;
+    }
+};
+
+void Priority(std::priority_queue<Process, std::vector<Process>, ComparePriority> processes) {
+    while (!processes.empty()) {
+        Process current_process = processes.top();
+        processes.pop();
+
+        std::cout << "Running process " << current_process.id << " with priority " << current_process.priority
+                  << " for " << current_process.burst_time << " units" << std::endl;
+    }
+}
+
+int main() {
+    std::priority_queue<Process, std::vector<Process>, ComparePriority> processes;
+    processes.push({1, 10, 2});
+    processes.push({2, 5, 1});
+    processes.push({3, 8, 3});
+    Priority(processes);
+
+    return 0;
+}
+```
+
+
+
+#####  时间片轮转（RR）
+
+调度策略将CPU时间分成固定长度的时间片，每个进程按照顺序获取一个时间片。当时间片用完后，当前进程被挂起并排队等待。
+
+优点是公平，允许每个进程有一定的执行时间。缺点是响应时间较长，且不适用于长时间运行的进程。
+
+```c++
+#include <iostream>
+#include <queue>
+
+struct Process {
+    int id;
+    int burst_time;
+};
+
+void RoundRobin(std::queue<Process> processes, int time_slice) {
+    while (!processes.empty()) {
+        Process current_process = processes.front();
+        processes.pop();
+
+        if (current_process.burst_time > time_slice) {
+            std::cout << "Running process " << current_process.id << " for " << time_slice << " units" << std::endl;
+            current_process.burst_time -= time_slice;
+            processes.push(current_process);
+        } else {
+            std::cout << "Running process " << current_process.id << " for " << current_process.burst_time << " units" << std::endl;
+        }
+    }
+}
+
+int main() {
+    std::queue<Process> processes;
+    processes.push({1, 10});
+    processes.push({2, 15});
+    processes.push({3, 5});
+    RoundRobin(processes, 8);
+
+    return 0;
+}
+```
+
+
+
+#####  最短剩余事件优先（SRTF）
+
+是一种基于抢占的进程调度策略。在这种策略下，CPU总是分配给剩余执行时间最短的进程。如果新进程到达并且其剩余运行时间比当前正在运行的进程的剩余时间短，那么当前进程将被中断，而新进程将被赋予CPU。
+
+优点是能确保更快的任务能尽快得到处理，而不会因为长时间任务而过长的等待；缺点是可能会产生“饿死”的问题，如果多个短任务连续到达，一个长任务可能会一直得不到处理。
+
+
+
+---
+
+
+
+### 10 关于死锁
+
+##### 什么是死锁
+
+死锁是指在多进程或多线程系统中，各个进程或线程因竞争资源而陷入互相等待的状态，无法继续执行。死锁通常涉及多个进程或线程，每个进程/线程都在等待另一个进程/线程释放其所需的资源，导致所有进程/线程都无法继续执行。
+
+**死锁通常包括以下必要条件：**
+
+- **互斥条件**：资源只能由一个进程或线程占用，其他进程或线程需要等待释放。（独一份）
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106204150187.png" alt="image-20231106204150187" style="zoom:50%;" />
+
+- **请求和保持条件**：进程持有至少一个资源，并且在请求其他资源时继续保持已拥有的资源。（吃着碗里的，想着锅里的）
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106204314546.png" alt="image-20231106204314546" style="zoom:50%;" />
+
+- **不可剥夺条件**：资源不能被强行剥夺，只能由持有资源的进程主动释放。（护食）
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106204420625.png" alt="image-20231106204420625" style="zoom:50%;" />
+
+- **循环等待条件**：存在一组进程，每个进程都等待下一个进程所拥有的资源。
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106204439250.png" alt="image-20231106204439250" style="zoom:50%;" />
+
+**模拟死锁问题的产生**
+
+- 首先，先创建 2 个线程，分别为线程 A 和 线程 B，然后有两个互斥锁，分别是 mutex_A 和 mutex_B，代码如下：
+
+```c++
+pthread_mutex_t mutex_A = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex_B = PTHREAD_MUTEX_INITIALIZER;
+
+int main()
+{
+    pthread_t tidA, tidB;
+
+    //创建两个线程
+    pthread_create(&tidA, NULL, threadA_proc, NULL);
+    pthread_create(&tidB, NULL, threadB_proc, NULL);
+
+    pthread_join(tidA, NULL);
+    pthread_join(tidB, NULL);
+
+    printf("exit\n");
+
+    return 0;
+}
+```
+
+A函数：
+
+```c++
+//线程函数 A
+/*
+先获取互斥锁 A，然后睡眠 1 秒；
+再获取互斥锁 B，然后释放互斥锁 B；
+最后释放互斥锁 A；
+*/
+void *threadA_proc(void *data)
+{
+    printf("thread A waiting get ResourceA \n");
+    pthread_mutex_lock(&mutex_A);
+    printf("thread A got ResourceA \n");
+
+    sleep(1);
+
+    printf("thread A waiting get ResourceB \n");
+    pthread_mutex_lock(&mutex_B);
+    printf("thread A got ResourceB \n");
+
+    pthread_mutex_unlock(&mutex_B);
+    pthread_mutex_unlock(&mutex_A);
+    return (void *)0;
+}
+```
+
+
+
+```c++
+//线程函数 B
+/**
+先获取互斥锁 B，然后睡眠 1 秒；
+再获取互斥锁 A，然后释放互斥锁 A；
+最后释放互斥锁 B；
+*/
+void *threadB_proc(void *data)
+{
+    printf("thread B waiting get ResourceB \n");
+    pthread_mutex_lock(&mutex_B);
+    printf("thread B got ResourceB \n");
+
+    sleep(1);
+
+    printf("thread B waiting  get ResourceA \n");
+    pthread_mutex_lock(&mutex_A);
+    printf("thread B got ResourceA \n");
+
+    pthread_mutex_unlock(&mutex_A);
+    pthread_mutex_unlock(&mutex_B);
+    return (void *)0;
+}
+```
+
+运行结果：
+
+```shell
+thread B waiting get ResourceB 
+thread B got ResourceB 
+thread A waiting get ResourceA 
+thread A got ResourceA 
+thread B waiting get ResourceA 
+thread A waiting get ResourceB 
+// 阻塞中...
+```
+
+可以看到线程 B 在等待互斥锁 A 的释放，线程 A 在等待互斥锁 B 的释放，双方都在等待对方资源的释放，很明显，产生了死锁问题。
+
+
+
+##### 如何解决死锁
+
+主要有一下三种方法：
+
+- 死锁防止
+- 死锁避免
+- 死锁检测和恢复
+
+
+
+---
+
+
+
+###### 死锁防止
+
+产生死锁的四个必要条件是：互斥条件、持有并等待条件、不可剥夺条件、循环等待条件。那么避免死锁问题就只需要破环其中一个条件就可以。
+
+其中最容易破坏的就是循环等待这个条件，**使用资源有序分配法，来破环循环等待条件**。
+
+也就是说，线程 A 和 线程 B 获取资源的顺序要一样，当线程 A 是先尝试获取资源 A，然后尝试获取资源 B 的时候，线程 B 同样也是先尝试获取资源 A，然后尝试获取资源 B。也就是说，线程 A 和 线程 B 总是以**相同的顺序**申请自己想要的资源。
+
+**破坏互斥条件**
+
+使资源同时访问而非互斥使用，就没有进程会阻塞在资源上，从而不发生死锁。
+
+> 只读数据文件、磁盘等软硬件资源均可采用这种办法管理；
+> 但是许多资源是独占性资源，如可写文件、键盘等只能互斥的占有；
+> 所以这种做法在许多场合是不适用的。
+
+**破坏占有和等待条件**
+
+采用静态分配的方式，静态分配的方式是指进程必须在执行之前就申请需要的全部资源，且直至所要的资源全部得到满足后才开始执行。
+
+> 实现简单，但是严重的减低了资源利用率。
+> 因为在每个进程占有的资源中，有些资源在运行后期使用，有些资源在例外情况下才被使用，可能会造成进程占有一些几乎用不到的资源，而使其他想使用这些资源的进程等待。
+
+**破坏不剥夺条件**
+
+剥夺调度能够防止死锁，但是只适用于内存和处理器资源。
+
+> 方法一：占有资源的进程若要申请新资源，必须主动释放已占有资源，若需要此资源，应该向系统重新申请。
+>
+> 方法二：资源分配管理程序为进程分配新资源时，若有则分配；否则将剥夺此进程已占有的全部资源，并让进程进入等待资源状态，资源充足后再唤醒它重新申请所有所需资源。
+
+**破坏循环等待条件**
+
+给系统的所有资源编号，规定进程请求所需资源的顺序必须按照资源的编号依次进行。
+
+> 采用层次分配策略，将系统中所有的资源排列到不同层次中
+>
+> - 一个进程得到某层的一个资源后，只能申请较高一层的资源
+> - 当进程释放某层的一个资源时，必须先释放所占有的较高层的资源
+> - 当进程获得某层的一个资源时，如果想申请同层的另一个资源，必须先释放此层中已占有的资源
+
+
+
+###### 死锁避免
+
+- **安全状态**
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106210406551.png" alt="image-20231106210406551" style="zoom:50%;" />
+
+图 a 的第二列 Has 表示已拥有的资源数，第三列 Max 表示总共需要的资源数，Free 表示还有可以使用的资源数。
+
+从图 a 开始出发，先让 B 拥有所需的所有资源（图 b）；
+
+运行结束后释放 B，此时 Free 变为 5（图 c）；
+
+接着以同样的方式运行 C 和 A，使得所有进程都能成功运行；
+
+因此可以称图 a 所示的状态时安全的。
+
+- **单个资源的银行家算法**
+
+与安全状态类似。
+
+一个小城镇的银行家，他向一群客户分别承诺了一定的贷款额度，算法要做的是判断对请求的满足是否会进入不安全状态，如果是，就拒绝请求；否则予以分配。
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106210555073.png" alt="image-20231106210555073" style="zoom:50%;" />
+
+- **多个资源的银行家算法**
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106210831593.png" alt="image-20231106210831593" style="zoom:50%;" />
+
+上图中有五个进程，四个资源。
+
+左边的图表示已经分配的资源，右边的图表示还需要分配的资源。
+
+最右边的 E、P 以及 A 分别表示：总资源、已分配资源以及可用资源。
+
+注意这三个为向量，而不是具体数值，例如 A=(1020)，表示 4 个资源分别还剩下 1/0/2/0。
+
+检查一个状态是否安全的算法如下：
+
+- 查找右边的矩阵是否存在一行小于等于向量 A。如果不存在这样的行，那么系统将会发生死锁，状态是不安全的。
+- 假若找到这样一行，将该进程标记为终止，并将其已分配资源加到 A 中。
+- 重复以上两步，直到所有进程都标记为终止，则状态时安全的。
+
+如果一个状态不是安全的，需要拒绝进入这个状态。
+
+
+
+---
+
+###### 死锁检测和恢复
+
+> 对资源的分配加以适当限制可防止或避免死锁发生，但不利于进程对系统资源的充分共享。
+
+- 如果进程 - 资源分配图中无环路，此时系统没有发生死锁。
+
+- 如果进程 - 资源分配图中有环路，则可分为以下两种情况：
+
+  - 每种资源类中仅有一个资源，则系统发生了死锁。此时，环路是系统发生死锁的**充分必要条件**，环路中的进程就是死锁进程。
+
+  - 每种资源类中有多个资源，则环路的存在只是产生死锁的**必要不充分条件**，系统未必会发生死锁。
+
+- **死锁检测**
+
+  - **每种资源类中仅有一个资源的死锁检测**
+
+  <img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106211938401.png" alt="image-20231106211938401" style="zoom:50%;" />
+
+  > ​	上图为资源分配图，其中方框表示资源，圆圈表示进程。
+  >
+  > ​	资源指向进程表示该资源已经分配给该进程，进程指向资源表示进程请求获取该资源。
+
+  ​		图 a 可以抽取出环，如图 b，它满足了环路等待条件，因此会发生死锁。
+
+  **死锁检测算法：**		
+
+  每种类型一个资源的死锁检测算法是通过检测有向图**是否存在环**来实现，从一个节点出发进行深度优先搜索，对访问过的节点进行标记，如果访问了已经标记的节点，就表示有向图存在环，也就是检测到死锁的发生。
+
+  - **每种资源类中有多个资源的死锁检测**
+
+  <img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106212202912.png" alt="image-20231106212202912" style="zoom:50%;" />
+
+​		每个资源类用一个方框表示，方框中的圆点表示此资源类中的各个资源；
+
+​		每个进程用一个圆圈来表示，用有向边表示进程申请资源和资源分配情况。
+
+​		约定方框→圆圈表示资源分配，圆圈→方框表示申请资源。
+
+​		这种情况下，图3-6 发生了死锁，而图3-7没有发生死锁。
+
+> 在这种情况下，系统处于死锁状态的充分条件是：当且仅当此状态的进程-资源分配图是不可完全简化的，这一充分条件称为死锁定理
+
+​		 **死锁检测算法**：
+
+<img src="C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231106212625958.png" alt="image-20231106212625958" style="zoom:50%;" />
+
+​		上图中，有三个进程四个资源，每个数据代表的含义如下：
+
+​		E 向量：资源总量
+
+​		A 向量：资源剩余量
+
+​		C 矩阵：每个进程所拥有的资源数量，每一行都代表一个进程拥有资源的数量
+
+​		R 矩阵：每个进程请求的资源数量
+
+进程 P1 和 P2 所请求的资源都得不到满足，只有进程 P3 可以，让 P3 执行，之后释放 P3 拥有的资源，此时 A = (2 2 2 0)。P2 可以执行，执行后释放 P2 拥有的资源，A = (4 2 2 1) 。P1 也可以执行。所有进程都可以顺利执行，没有死锁。
+
+**算法总结如下：**
+
+每个进程最开始时都不被标记，执行过程有可能被标记。当算法结束时，任何没有被标记的进程都是死锁进程。
+
+1. 寻找一个没有标记的进程 Pi，它所请求的资源小于等于 A。
+2. 如果找到了这样一个进程，那么将 C 矩阵的第 i 行向量加到 A 中，标记该进程，并转回 1。
+3. 如果没有这样一个进程，算法终止。
+
+- **死锁恢复**
+
+  - **资源剥夺法**
+    剥夺陷于死锁的进程所占用的资源，但并不撤销此进程，直至死锁解除。
+
+  - **进程回退法**
+    根据系统保存的检查点让所有的进程回退，直到足以解除死锁，这种措施要求系统建立保存检查点、回退及重启机制。
+
+  - **进程撤销法**
+
+    - 撤销陷入死锁的所有进程，解除死锁，继续运行。
+
+    - 逐个撤销陷入死锁的进程，回收其资源并重新分配，直至死锁解除。
+
+      > 可选择符合下面条件之一的先撤销： 
+      >
+      > 1. CPU消耗时间最少者 
+      >
+      > 2. 产生的输出量最小者
+      > 3. 预计剩余执行时间最长者
+      > 4. 分得的资源数量最少然后优先级最低者
+
+  - **系统重启法**
+    结束所有进程的执行并重新启动操作系统。这种方法很简单，但先前的工作全部作废，损失很大。
