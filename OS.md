@@ -1555,7 +1555,7 @@ static void sig_child(int signo)
 
 
 
-### 9 操作系统调度策略
+### 9 进程调度策略
 
 ##### 先来先服务（FCFS）
 
@@ -2057,3 +2057,351 @@ thread A waiting get ResourceB
 
   - **系统重启法**
     结束所有进程的执行并重新启动操作系统。这种方法很简单，但先前的工作全部作废，损失很大。
+
+
+
+---
+
+### 11 锁机制
+
+##### 互斥锁
+
+- **概述**
+
+mutex，用于保证在任何时刻，都只能有一个线程访问该对象。当获取锁操作失败时，线程会进入睡眠，等待锁释放时被唤醒。
+
+- **适用情况**
+
+当线程等待锁的时间较长，或者竞争锁的线程数较多时，使用互斥锁较为合适。
+
+- **特点**
+
+  - 多个线程访问共享数据的时候是串行的
+
+  - 多线程共享一个互斥量，然后线程之间去竞争，得到锁的线程可以进入临界区执行代码。
+
+  - mutex是睡眠等待（sleep waiting）类型的锁，当线程抢互斥锁失败的时候，线程会陷入休眠。
+
+- **缺点**
+
+缺点就是效率低，休眠唤醒会消耗一点时间
+
+- **函数接口**
+
+```c++
+// 声明一个互斥量    
+pthread_mutex_t mtx;
+// 初始化 
+pthread_mutex_init(&mtx, NULL);
+// 加锁  
+pthread_mutex_lock(&mtx);
+// 解锁 
+pthread_mutex_unlock(&mtx);
+// 销毁
+pthread_mutex_destroy(&mtx);
+```
+
+- **非阻塞式锁**
+
+pthread_mutex_trylock()用于以非阻塞的模式来请求互斥量。当加锁失败的时候，并不会阻塞进程，而是继续进行其他操作
+
+```c++
+ret = pthread_mutex_trylock(&mtx);
+if (0 == ret) { // 加锁成功
+    ... 
+    pthread_mutex_unlock(&mtx);
+} else if(EBUSY == ret){ // 锁正在被使用;
+    ... 
+}
+```
+
+
+
+##### 条件变量
+
+> 条件变量不是锁，是一种线程间通信方式，并且几乎总和互斥量一起适用。
+>
+> 互斥锁用于保护临界区代码，确保同一时间只有一个线程可以进入临界区。而条件变量用于线程之间的通信，使得线程可以等待某个条件为真时再继续执行。
+
+
+
+- **代码示例**
+
+在这个示例中，生产者线程通过互斥锁保护共享资源，在每次生产一个资源后，通过条件变量发送信号通知消费者线程。同时，消费者线程在消费资源之前会等待条件变量的信号，一旦收到信号后进行消费。
+
+需要注意的是，互斥锁和条件变量必须在使用之前进行初始化，并在使用完成后进行销毁。
+
+```c++
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
+#define NUM_THREADS 5
+
+pthread_mutex_t mutex;
+pthread_cond_t condition;
+int shared_resource = 0;
+
+void* producer(void* arg) {
+    for (int i = 0; i < 10; i++) {
+        pthread_mutex_lock(&mutex);
+        shared_resource += 1;
+
+        printf("Producer: shared_resource = %d\n", shared_resource);
+
+        pthread_cond_signal(&condition);  // 唤醒等待的消费者线程
+        pthread_mutex_unlock(&mutex);
+
+        // 生产者产生一个资源后，休眠一段时间
+        sleep(1);
+    }
+
+    pthread_exit(NULL);
+}
+
+void* consumer(void* arg) {
+    int value = 0;
+
+    for (int i = 0; i < 10; i++) {
+        pthread_mutex_lock(&mutex);
+
+        while (shared_resource == 0) {
+            pthread_cond_wait(&condition, &mutex);  // 等待生产者发信号
+        }
+
+        value = shared_resource;
+        shared_resource = 0;
+
+        printf("Consumer: Consumed value = %d\n", value);
+
+        pthread_mutex_unlock(&mutex);
+
+        // 消费者消耗一个资源后，休眠一段时间
+        sleep(1);
+    }
+
+    pthread_exit(NULL);
+}
+
+int main() {
+    pthread_t producer_thread, consumer_thread;
+
+    pthread_mutex_init(&mutex, NULL);
+    pthread_cond_init(&condition, NULL);
+
+    pthread_create(&producer_thread, NULL, producer, NULL);
+    pthread_create(&consumer_thread, NULL, consumer, NULL);
+
+    pthread_join(producer_thread, NULL);
+    pthread_join(consumer_thread, NULL);
+
+    pthread_mutex_destroy(&mutex);
+    pthread_cond_destroy(&condition);
+
+    return 0;
+}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+##### 自旋锁
+
+- **概述**
+
+通过循环等待的方式来实现。当线程尝试获取自旋锁时，如果锁已经被其他线程获取，它将循环等待直到锁被释放。
+
+- **适用情况**
+
+当线程等待锁的时间很短且竞争锁的线程数较少时，使用自旋锁可以避免进程上下文切换带来的开销。
+
+- **缺点**
+
+  - **过多占据CPU时间**：如果锁的当前持有者长时间不释放该锁，那么等待者将长时间的占据cpu时间片，导致CPU资源的浪费，因此可以设定一个时间，当锁持有者超过这个时间不释放锁时，等待者会放弃CPU时间片阻塞；
+
+  - **死锁问题**：试想一下，有一个线程连续两次试图获得自旋锁（比如在递归程序中），第一次这个线程获得了该锁，当第二次试图加锁的时候，检测到锁已被占用（其实是被自己占用），那么这时，线程会一直等待自己释放该锁，而不能继续执行，这样就引起了死锁。因此递归程序使用自旋锁应该遵循以下原则：递归程序决不能在持有自旋锁时调用它自己，也决不能在递归调用时试图获得相同的自旋锁。
+
+- **函数接口**
+
+```c++
+// 声明一个自旋锁变量
+pthread_spinlock_t spinlock;
+
+// 初始化   
+pthread_spin_init(&spinlock, 0);
+
+// 加锁  
+pthread_spin_lock(&spinlock);
+
+// 解锁 
+pthread_spin_unlock(&spinlock);
+
+// 销毁  
+pthread_spin_destroy(&spinlock);
+```
+
+> pthread_spin_init(&spinlock, 0);函数的第二个参数名为pshared（int类型）。
+>
+> 表示的是进程间能否共享自旋锁。
+>
+> 这被称之为Thread Process-Shared Synchronization。
+>
+> 互斥量的通过该属性也可以把互斥量设置成进程间共享的。
+>
+> pshared有两个[枚举值](https://www.zhihu.com/search?q=枚举值&search_source=Entity&hybrid_search_source=Entity&hybrid_search_extra={"sourceType"%3A"answer"%2C"sourceId"%3A1267625567})：
+>
+> - **PTHREAD_PROCESS_PRIVATE：仅同进程下读线程可以使用该自旋锁**
+> - **PTHREAD_PROCESS_SHARED：不同进程下的线程可以使用该自旋锁**
+
+
+
+##### 读写锁
+
+- **概述**
+
+读写锁会对读操作和写操作进行区分：
+
+当读写锁被加了【写锁】时，其他线程对该锁加【读锁】或者【写锁】都会**阻塞**。
+
+当读写锁被加了【读锁】时，其他线程对该锁加【写锁】会**阻塞**，加【读锁】会成功。
+
+- **适用情况**
+
+多读少写
+
+- **函数接口**
+
+```c++
+// 声明一个读写锁
+pthread_rwlock_t rwlock;
+
+// 初始化一个读写锁
+pthread_rwlock_init(&rwlock, NULL);
+
+...
+// 在读之前加读锁
+pthread_rwlock_rdlock(&rwlock);
+
+//... 共享资源的读操作
+
+// 读完释放锁
+pthread_rwlock_unlock(&rwlock);
+
+// 在写之前加写锁
+pthread_rwlock_wrlock(&rwlock); 
+
+//... 共享资源的写操作
+
+// 写完释放锁
+pthread_rwlock_unlock(&rwlock);
+
+// 销毁读写锁
+pthread_rwlock_destroy(&rwlock);
+
+```
+
+- **非阻塞式锁**
+
+读写锁和互斥量一样也有trylock函数，也是以非阻塞地形式来请求锁，不会导致阻塞。
+
+```c++
+ pthread_rwlock_tryrdlock(&rwlock)
+ pthread_rwlock_trywrlock(&rwlock)
+```
+
+
+
+##### 悲观锁
+
+> MySQL默认悲观锁
+>
+> 无论是悲观锁还是乐观锁都是一种设计思想
+
+- **概述**
+
+悲观锁在操作数据时比较悲观，认为别人会同时修改数据。
+
+因此操作数据时直接把数据锁住，直到操作完成后才会释放锁；上锁期间其他人不能修改数据。
+
+- **适用情况**
+
+  - 当读操作较多，写操作较少的情况。
+
+  - 当对共享资源操作的时间较长，且并发冲突概率较高的情况。
+
+- **实现**
+
+悲观锁的实现通常借助于互斥锁（Mutex）、读写锁（Read-Write Lock）或自旋锁（Spin Lock）等。
+
+
+
+
+
+##### 乐观锁
+
+- **概述**
+
+乐观锁在操作数据时非常乐观，认为别人不会同时修改数据。
+
+因此乐观锁不会上锁，只是在执行更新的时候判断一下在此期间别人是否修改了数据：如果别人修改了数据则放弃操作，否则执行操作。
+
+- **适用情况**
+
+  - 当读操作较少，写操作较多的情况。
+
+  - 当对共享资源操作的时间较短且并发冲突概率较低的情况。
+
+- **特点**
+
+  - 许多CAS的操作是自旋的：如果操作不成功，会一直重试，直到操作成功为止。
+
+  - 乐观锁适用于多读的应用类型，这样可以提高吞吐量
+
+
+
+- **实现方式**
+
+  - **CAS（Compare And Swap）**
+
+  > CAS包含以下三个操作：
+  >
+  > > 需要读写的内存位置(V)
+  > >
+  > > 进行比较的预期值(A)
+  > >
+  > > 拟写入的新值(B)
+
+  如果内存位置V的值等于预期的A值，则将该位置更新为新值B，否则不进行任何操作。
+
+  > CAS的缺点：
+  >
+  > > 1：**ABA问题：**如果一个变量V初次读取的时候是A值，并且在准备赋值的时候检查到它仍然是A值，那我们就能说明它的值没有被其他线程修改过了吗？很明显是不能的，因为在这段时间它的值可能被改为其他值，然后又改回A，那CAS操作就会误认为它从来没有被修改过。这个问题被称为CAS操作的 **"ABA"问题。**
+  > >
+  > > 2：**循环时间长，CPU开销大**：自旋CAS（也就是不成功就一直循环执行直到成功）如果长时间不成功，会给CPU带来非常大的执行开销。
+  > >
+  > > 3：**只能保证一个变量的原子性**：CAS 只对单个共享变量有效，当操作涉及跨多个共享变量时 CAS 无效。
+
+  
+
+  
+
+  - **版本号机制**
+
+  一般是在数据表中加上一个数据版本号version字段，表示数据被修改的次数，当数据被修改时，version值会加一。
+
+  当线程A要更新数据值时，在读取数据的同时也会读取version值，在提交更新时，若刚才读取到的version值为当前数据库中的version值相等时才更新，否则重试更新操作，直到更新成功。
+
+
+
