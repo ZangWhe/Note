@@ -2405,3 +2405,246 @@ pthread_rwlock_destroy(&rwlock);
 
 
 
+---
+
+
+
+### 12 页面置换算法
+
+> 在程序运行过程中，如果要访问的页面不在内存中，就发生缺页中断从而将该页调入内存中。此时如果内存已无空闲空间，系统必须从内存中调出一个页面到磁盘对换区中来腾出空间。
+
+##### 先进先出(FIFO)算法：
+
+- 思路：置换最先调入内存的页面，即置换在内存中驻留时间最久的页面。
+- 实现：按照进入内存的先后次序排列成队列，从队尾进入，从队首删除。
+- 特点：实现简单；性能较差，调出的页面可能是经常访问的
+
+##### 最近最少使用（LRU）算法:
+
+- 思路： 置换最近一段时间以来最长时间未访问过的页面。根据程序局部性原理，刚被访问的页面，可能马上又要被访问；而较长时间内没有被访问的页面，可能最近不会被访问。
+- 实现：可以通过维护一个链表实现，缺页时，将链表尾部的内存页面删除，访问到一个已经存在的页面时，从链表中删除并置于表头，如果该页面不存在，则直接插入表头
+- 特点：可能达到最优的效果，维护这样的访问链表开销比较大
+
+
+
+##### 最不常用算法（Least Frequently Used, LFU）
+
+- 思路：缺页时，置换访问次数最少的页面
+- 实现：每个页面设置一个访问计数，访问页面时，访问计数加1，缺页时，置换计数最小的页面
+- 特点：算法开销大，开始时频繁使用，但以后不使用的页面很难置换
+
+
+
+---
+
+
+
+### 13 什么是抖动现象
+
+##### 介绍
+
+在操作系统中，抖动现象是指如果分配给进程的存储块数量小于进程所需要的最小值，进程的运行将很频繁地产生缺页中断，这种频率非常高的页面置换现象称为抖动。
+
+在请求分页存储管理中，可能出现这种情况，即对刚被替换出去的页，立即又要被访问。需要将它调入，因无空闲内存又要替换另一页，而后者又是即将被访问的页，于是造成了系统需花费大量的时间忙于进行这种频繁的页面交换，致使系统的实际效率很低，严重导致系统瘫痪，这种现象称为抖动现象。 
+
+抖动现象发生在FIFO页面置换算法中，FIFO并不是一个好的置换算法。
+
+##### 产生原因
+
+进程内存不足，分配页面太少，所以总是缺页。
+
+##### 解决方法
+
+换个好点的页面置换算法，减少进程数，增大内存。
+
+
+
+---
+
+
+
+### 14 用户空间与内核空间通信方式有哪些？
+
+内核态与用户态的定义： 当进程运行在内核空间时就处于内核态，而进程运行在用户空间时则处于用户态。
+
+对于进程来说，它既有内核空间（与其他进程共享），也有用户空间（进程私有）。
+
+内核空间和用户空间交换数据的方式有很多。
+
+- 用户空间发起的有系统调用、proc、虚拟文件系统等。
+- 内核空间主动发起的有get_user/put_user、信号、netlink等。
+
+
+
+##### 系统调用
+
+Linux系统下，设备即文件，也因此大部分设备驱动程序都实现了标准的系统接口，如：
+
+​    ● open()，read()，write()， ioctl()， mmap()
+
+​    ● get_user(x，ptr)：在内核中被调用，获取用户空间指定地址的数值并保存到内核变量x中。
+
+​    ● put_user(x，ptr)：在内核中被调用，将内核空间变量x的数值保存到到用户空间指定地址处
+
+​    ● Copy_from_user() / copy_to_user()：主要应用于设备驱动读写函数中，通过系统调用触发
+
+##### procfs(/proc)
+
+  `procfs` 是 **进程文件系统** 的缩写，它本质上是一个伪文件系统，为什么说是**伪**文件系统呢？因为它不占用外部存储空间，只是占用少量的内存，通常是挂载在 `/proc` 目录下。
+
+`/proc`目录下的文件，实际上是一个内核变量。内核就是通过这个目录，以文件的形式展现自己的内部信息，相当于 `/proc` 目录为用户态和内核态之间的交互搭建了一个桥梁，用户态读写 `/proc` 下的文件，就是读写内核相关的配置参数。
+
+比如常见的 `/proc/cpuinfo`、`/proc/meminfo` 和 `/proc/net` 就分别提供了 CPU、内存、网络的相关参数。
+
+   
+
+#####  sysctl
+
+```shell
+man sysctl
+```
+
+![image-20231108171038791](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231108171038791.png)
+
+它主要是被用来修改内核的运行时参数，换句话说，它可以在内核运行过程中，动态修改内核参数。
+
+它本质上还是用到了文件的读写操作，来完成用户态和内核态的通信。它使用的是 `/proc` 的一个子目录 `/proc/sys`。
+
+和 procfs 的区别在于：
+
+procfs 主要是输出只读数据，而 sysctl 输出的大部分信息是可写的。
+
+
+
+例如，我们比较常见的是通过 `cat /proc/sys/net/ipv4/ip_forward` 来获取内核网络层是否允许转发 IP 数据包，
+
+通过 `echo 1 > /proc/sys/net/ipv4/ip_forward` 或者 `sysctl -w net.ipv4.ip_forward=1` 来设置内核网络层允许转发 IP 数据包。
+
+同样的操作，Linux 也提供了文件 `/etc/sysctl.conf` 来让你进行批量修改。
+
+
+
+##### sysfs
+
+sysfs 是 Linux 2.6 才引入的一种虚拟文件系统，它的做法也是通过文件 `/sys` 来完成用户态和内核的通信。和 procfs 不同的是，sysfs 是将一些原本在 procfs 中的，关于设备和驱动的部分，独立出来，以 “设备树” 的形式呈现给用户。
+
+sysfs 不仅可以从内核空间读取设备和驱动程序的信息，也可以对设备和驱动进行配置。
+
+```javascript
+# ls /sys
+block  bus  class  dev  devices  firmware  fs  hypervisor  kernel  module  power
+```
+
+可以看到这些文件基本上都跟计算机的设备和驱动等息息相关的。
+
+##### netlink
+
+netlink 是 Linux 用户态与内核态通信最常用的一种方式。Linux kernel 2.6.14 版本才开始支持。
+
+它本质上是一种 socket，常规 socket 使用的标准 API，在它身上同样适用。
+
+比如创建一个 netlink socket，可以调用如下的 socket 函数：
+
+```c
+#include <asm/types.h>
+#include <sys/socket.h>
+#include <linux/netlink.h>
+
+netlink_socket = socket(AF_NETLINK, socket_type, netlink_family);
+```
+
+> `net-tools` 工具通过 procfs(/proc) 和 ioctl 系统调用去访问和改变内核网络参数配置，而 `iproute2` 则通过 netlink 套接字接口与内核通信，前者已经被淘汰了，后者逐步成为标准。
+
+
+
+##### 内存映像
+
+ mmap共享内存。
+
+Linux通过mmap的把内核中特定部分的内存空间映射到用户级程序的内存空间去，从而提供了用户程序对内存直接访问的能力。该方式尤其适合在那些内核和用户空间需要快速大量交互数据的情况下。
+
+
+
+---
+
+
+
+### 15 什么是写时复制
+
+##### 概述
+
+**写时复制**（**Copy-on-write**，简称**COW**）是一种计算机程序设计领域的优化策略。
+
+其核心思想是，如果有多个调用者（callers）同时请求相同资源（如内存或磁盘上的数据存储），他们会共同获取相同的指针指向相同的资源，直到某个调用者试图修改资源的内容时，系统才会真正复制一份专用副本（private copy）给该调用者，而其他调用者所见到的最初的资源仍然保持不变。这过程对其他的调用者都是[透明](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/%E9%80%8F%E6%98%8E)的。
+
+此做法主要的优点是如果调用者没有修改该资源，就不会有副本（private copy）被创建，因此多个调用者只是读取操作时可以共享同一份资源。
+
+##### 实现
+
+1. **共享资源创建**：当多个进程或线程需要访问同一资源时，该资源被创建并标记为可共享。这样所有进程或线程都可以同时访问该资源，而无需进行实际的复制。
+2. **写操作检测**：当某个进程或线程要进行写操作时，系统会检测到这一操作，并意识到需要进行复制，以确保该进程或线程有自己的私有拷贝。
+3. **资源复制**：当写操作被检测到时，系统会为需要写的进程或线程创建一个新的私有拷贝。这个拷贝是原始资源的独立副本，可以进行修改而不会影响其他共享进程或线程。
+
+##### 代码
+
+set
+
+```java
+public boolean add(E e) {
+        final ReentrantLock lock = this.lock;
+        lock.lock();
+        try {
+            Object[] elements = getArray();
+            int len = elements.length;
+            Object[] newElements = Arrays.copyOf(elements, len + 1);
+            newElements[len] = e;
+            setArray(newElements);
+            return true;
+        } finally {
+            lock.unlock();
+        }
+    }
+```
+
+get
+
+```java
+ public E get(int index) {
+        return get(getArray(), index);
+    }
+    
+    @SuppressWarnings("unchecked")
+    private E get(Object[] a, int index) {
+        return (E) a[index];
+    }    
+```
+
+
+
+##### 优点
+
+- **节约内存**：在写操作之前，所有进程或线程共享同一块内存或资源，节省了复制所需的额外内存空间。
+- **提高性能**：由于没有实际的复制操作，因此减少了对内存和其他资源的访问和操作，提高了整体性能。
+- **避免不必要的复制**：在某些情况下，多个进程或线程对资源的修改是相同的，这时就不需要进行实际的复制，而是继续共享。
+
+##### 缺点
+
+- **数据一致性问题**：这种实现只是保证数据的最终一致性，在添加到拷贝数据而还没进行替换的时候，读到的仍然是旧数据。
+
+- **内存占用问题**：如果对象比较大，频繁地进行替换会消耗内存，从而引发 Java 的 GC 问题，这个时候，我们应该考虑其他的容器，例如 ConcurrentHashMap。
+
+##### 用途
+
+- **虚拟内存管理中的写时复制**
+
+一般把这种被共享访问的页面标记为只读。当一个task试图向内存中写入数据时，[内存管理单元](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/%E5%86%85%E5%AD%98%E7%AE%A1%E7%90%86%E5%8D%95%E5%85%83)（MMU）抛出一个异常，内核处理该异常时为该task分配一份物理内存并复制数据到此内存，重新向MMU发出执行该task的写操作。
+
+- **数据存储中的写时复制**
+
+[Linux](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/Linux)等的文件管理系统使用了写时复制策略。
+
+[数据库](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/%E6%95%B0%E6%8D%AE%E5%BA%93)服务器也一般采用了写时复制策略，为用户提供一份snapshot。
+
+- **软件应用中的写时复制**
+
+[C++标准程序库](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/C%2B%2B%E6%A0%87%E5%87%86%E7%A8%8B%E5%BA%8F%E5%BA%93)中的[std::string](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/String_(C%2B%2B%E6%A0%87%E5%87%86%E5%BA%93))类，在C++98/C++03标准中是允许写时复制策略。但在[C++11](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/C%2B%2B11)标准中为了提高并行性取消了这一策略。[[1\]](https://link.zhihu.com/?target=https%3A//zh.wikipedia.org/wiki/%E5%AF%AB%E5%85%A5%E6%99%82%E8%A4%87%E8%A3%BD%23cite_note-1) GCC从版本5开始，std::string不再采用COW策略。
