@@ -2518,3 +2518,95 @@ extern "C"
 
 但在b.h中，由于#include "a.h"被放到了extern "C" { }的内部，函数foo的链接规范被不正确地更改了。
 
+
+
+---
+
+
+
+### 50 const关键字
+
+#####  const和static的区别
+
+`const` 和 `static` 是两个在C++中常用的关键字，它们分别用于不同的目的。
+
+- const:
+  - `const` 是用于声明常量的关键字。它可以用于声明常量变量、指针或成员函数，并表示其数值或内容不能被修改。
+  - 在声明常量变量时，`const` 放在变量类型之前，例如 `const int x = 10;` 表示 x 是一个不可修改的整数常量。
+  - 在指针声明时，`const` 可以放在 `*` 的前面或后面，表示指针指向的值或指针本身是不可修改的。例如 `const int *ptr` 表示指向常量整数的指针，而 `int const *ptr` 也具有相同的含义。
+  - 在成员函数声明时，`const` 放在函数的参数列表后面，表示该函数是一个常量成员函数，不能修改对象的成员变量。
+
+```c++
+const int x = 10;           // 声明常量
+const int *ptr = &x;        // 声明指向常量的指针
+int const *ptr2 = &x;       // 也是声明指向常量的指针，const 可以放在 * 前面
+void printValue() const;    // 声明常量成员函数
+```
+
+- static:
+  - `static` 是一个多用途的关键字，它的含义和作用取决于它的上下文。
+  - 在全局变量或函数中，`static` 表示其作用域限定在当前文件（文件作用域），即该变量或函数在其他文件中是不可见的。
+  - 在局部变量中，`static` 使得该变量的生命周期延长到整个程序的运行期间，而不是仅在定义它的作用域内存在。
+  - 在类中，`static` 用于声明静态成员变量或静态成员函数，它们属于类而不是属于类的实例，可以通过类名访问而无需创建对象。
+
+```c++
+// static 用于全局变量或函数
+static int globalVar = 20;   // 全局变量，文件作用域
+
+static void myFunction() {}  // 静态函数，文件作用域
+
+int main() {
+    // static 用于局部变量
+    static int localVar = 30;  // 静态局部变量，生命周期延长
+
+    // static 用于类
+    class MyClass {
+    public:
+        static int staticVar;   // 静态成员变量
+        static void staticFunction() {}  // 静态成员函数
+    };
+
+    MyClass::staticVar = 40;   // 访问静态成员变量
+    MyClass::staticFunction();  // 调用静态成员函数
+
+    return 0;
+}
+```
+
+总的来说，`const` 用于声明常量，而 `static` 用于控制变量、函数或成员的作用域、生命周期以及静态性质。
+
+##### 如果使用 const 修饰成员函数、还想修改成员变量怎么办
+
+如果希望在一个被声明为 `const` 的成员函数中修改某些成员变量，可以将这些成员变量声明为 `mutable`。
+
+`mutable` 关键字告诉编译器，即使在 `const` 成员函数中，被声明为 `mutable` 的成员变量仍然可以被修改。
+
+```c++
+class MyClass {
+public:
+    int getValue() const {
+        // 可以读取 data，因为它是 const 成员函数
+        return data;
+    }
+
+    void setValue(int newValue) const {
+        // 可以修改 mutable 成员变量
+        mutableData = newValue;
+    }
+
+private:
+    int data;           // 普通成员变量
+    mutable int mutableData;  // mutable 成员变量
+};
+
+int main() {
+    const MyClass obj;  // const 对象
+    int value = obj.getValue();  // 可以调用 const 成员函数
+
+    // 错误，不能调用 const 对象上的试图修改普通成员变量的函数
+    // obj.setValue(42);
+
+    return 0;
+}
+```
+
