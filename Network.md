@@ -234,7 +234,7 @@ ulimit -n <new_limit>
 
 ##### 1.9 三次握手中为什么需要协商MSS
 
-MSS（Maximum Segment Size，最大报文长度），是TCP协议定义的一个选项，MSS选项用于在TCP连接建立时，收发双方协商通信时每一个报文段所能承载的最大数据长度。
+MSS（Maximum Segment Size，最大报文大小），是TCP协议定义的一个选项，MSS选项用于在TCP连接建立时，收发双方协商通信时每一个报文段所能承载的最大数据长度。
 
 也就是TCP给网络层的而数据大小最大就是MSS个字节
 
@@ -490,18 +490,137 @@ TCP要保证数据可靠且有序，**确认应答机制**（序号，同步）+
   - 流量控制机制：通过接收方的接受能力来控制发送方发送的数据量
   - 延时应答机制： TCP使用延迟确认机制来减少确认消息的数量。接收方会等待一段时间（通常是200毫秒），将多个接收确认合并成一个确认，从而减少网络上的控制消息，提高传输效率。
 - 网络的转发能力
-  - 拥塞控制机制：通过不同的策略，不断地探测网络的转发能力，调整发送方的发送数据量
+  - 拥塞控制机制：通过不同的策略，不断地探测网络的转发能力，调整发送方的发送数据量，目的就是避免发送方的数据填满网络
     - 慢启动
     - 拥塞避免
     - 快恢复
 
 
 
+##### 1.20 什么是滑动窗口机制？- 理解TCP的缓冲区
+
+SOCKET send()和recv()
+
+```c++
+int send(int sockfd, const void *msg, int len, int flags);
+
+
+int recv(int sockfd, void *buf, int len, unsigned int flags);
+```
+
+
+
+**1）send函数把数据放到哪里去了**
+
+send会将要发送的数据放入内核缓冲区中
+
+![image-20231128192642489](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128192642489.png)
+
+
+
+**2）recv函数从哪里获取数据**
+
+从接收缓冲区中读取数据到`buf`中
+
+![image-20231128192830893](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128192830893.png)
+
+
+
+**3）TCP协议是如何发送和接收数据的**
+
+进程A与进程B之间的通信，进程A将数据放入发送缓冲区，TCP协议自主调整发送信息的策略进行数据通信
+
+![image-20231128192958902](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128192958902.png)
+
+
+
+4）TCP的发送缓冲区/接收缓冲区
+
+- 发送缓冲区和接收缓冲区都是`环形队列`
+- 通过调用send()将应用层数据给到TCP的发送缓冲区，TCP从发送缓冲区当中获取数据进行发送
+- 通过调用recv()从TCP的接收缓冲区当中获取数据，网络层递交给TCP的数据最终存放到接收缓冲区	
+
+
+
+##### 1.21 什么是滑动窗口机制？ - 理解滑动窗口中的窗口
+
+**1）从TCP的看角度来体会发送缓冲区的不同区域**
+
+发送缓冲区中的字节流可以根据发送的状态分为不同的区域
+
+发送方按分组对数据进行划分，分组的大小就是最大报文大小（MSS）
+
+![image-20231128194612854](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128194612854.png)
+
+
+
+**2）窗口**
+
+窗口中的数据包括的数据：
+
+- 已发送但没有收到ACK
+- 可以发送但还没有发送
+
+![image-20231128195207776](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128195207776.png)
+
+窗口中的数据可以不经确认，而直接交给网络层进行数据发送
+
+
+
+
+
+##### 1.22 什么是滑动窗口机制？ - 理解滑动窗口机制
+
+**1）理解之前的确认应答机制**
+
+![image-20231128200917370](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128200917370.png)
+
+- 只能是发送方发送一个数据之后，等待接收方的确认
+- 在没有滑动窗口机制之前，等接收完之后，才能接收第二个数据包，这样就会效率很低
+- 确认应答机制+超时重传机制能够保证数据的可靠传输，但是发送数据的效率比较低
+
+
+
+**2）理解现在的滑动窗口机制**
+
+![image-20231128201334971](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128201334971.png)
+
+- 之前是一组（MSS）数据被允许发送
+- 滑动窗口**允许窗口内的多个分组（MSS），不需要前一个分组的确认数据包，就可以丢到网络中进行传输，提高TCP发送方的发送数据量**
+
+**2.1）从开发者的角度看（不断地往发送缓冲区中放入数据）**
+
+![image-20231128201629842](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128201629842.png)
+
+2.2）从TCP的角度看（将发送缓冲区分成了不同的区域，允许多个分组同时放入网络中传输）
+
+![image-20231128201654915](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128201654915.png)
+
+**2.3）从动态的角度看**
+
+![image-20231128201800176](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128201800176.png)
+
+
+
+**3）窗口中收到靠后分组的确认，窗口可以向右滑动吗？**
+
+接收方如果对某一分组给出了确认应答，也就是对该分组之前的所有内容都已经收到了，所以窗口时可以向右移动的
+
+![image-20231128202333543](C:\Users\WangZhe\AppData\Roaming\Typora\typora-user-images\image-20231128202333543.png)
+
+
+
+> TCP 头里有一个字段叫 Window，也就是窗口大小。
+>
+> **这个字段是接收端告诉发送端自己还有多少缓冲区可以接收数据。于是发送端就可以根据这个接收端的处理能力来发送数据，而不会导致接收端处理不过来。**
+>
+> 所以，通常窗口的大小是由接收方的决定的。
+
 ---
 
 
 
-### 网页输入一个 URL 并回车到显示网页、这个过程发生了什么
+### 2 网页输入一个 URL 并回车到显示网页、这个过程发生了什么
 
 [在浏览器输入 URL 回车之后发生了什么（超详细版） - 知乎 (zhihu.com)](https://zhuanlan.zhihu.com/p/80551769)
 
@@ -570,7 +689,7 @@ TCP要保证数据可靠且有序，**确认应答机制**（序号，同步）+
 
 
 
-### ARP协议
+### 3 ARP协议
 
 ARP（Address Resolution Protocol）是一种用于解析网络层地址（通常是IPv4地址）到物理网络地址（通常是MAC地址）的协议。在TCP/IP网络中，设备通常使用IP地址来标识自己，而在局域网（LAN）上，设备之间的通信实际上是通过物理地址（MAC地址）进行的。ARP协议帮助在这两种地址之间建立映射关系。
 
